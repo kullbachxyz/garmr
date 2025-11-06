@@ -12,14 +12,6 @@ A self-hosted fitness activity tracker for Garmin FIT files. Import, analyze, an
 - **Responsive Design**: Works on desktop and mobile devices
 - **Statistics Dashboard**: Aggregated stats with sport filtering
 
-## Screenshots
-
-The web interface provides:
-- Dashboard with weekly, monthly, and yearly statistics
-- Detailed activity views with interactive maps and charts
-- Heart rate zone visualization with percentages
-- Training effect metrics for supported devices
-
 ## Installation
 
 ### Prerequisites
@@ -84,12 +76,6 @@ The application uses `garmr.json` by default:
    - **USB Import**: Connect your Garmin device and use the "Scan & Import from USB" button
    - **File Upload**: Drag and drop FIT files or use the file picker
 
-## Data Storage
-
-- **Database**: SQLite database stores activity metadata, records, and statistics
-- **Raw Files**: Original FIT files are preserved in the raw storage directory
-- **No Cloud**: All data stays on your local system
-
 ## Supported Devices
 
 Any Garmin device that produces standard FIT files. Tested with:
@@ -97,34 +83,9 @@ Any Garmin device that produces standard FIT files. Tested with:
 - Garmin Edge cycling computers
 - Other ANT+ and FIT-compatible devices
 
-## Development
-
-```bash
-# Install dependencies
-go mod tidy
-
-# Run with live reload (if using air)
-air
-
-# Run tests
-go test ./...
-```
-
 ## Architecture
 
 - **Backend**: Go with SQLite database
 - **Frontend**: HTML templates with Chart.js for visualizations
 - **Mapping**: Leaflet with OpenStreetMap tiles
 - **FIT Parsing**: github.com/tormoder/fit library
-
-## License
-
-MIT License - see LICENSE file for details
-
-## Contributing
-
-Contributions welcome! Please read the contributing guidelines and submit pull requests.
-
-## Support
-
-For issues and feature requests, please use the GitHub issue tracker.
