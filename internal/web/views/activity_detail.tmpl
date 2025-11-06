@@ -16,7 +16,7 @@
     <div class="metric-label">Avg pace</div>
   </div>
   <div class="metric">
-    <div class="metric-value">{{.AvgHR}} <span class="metric-unit">bpm</span></div>
+    <div class="metric-value">{{if and .AvgHR (ne .AvgHR 255)}}{{.AvgHR}} <span class="metric-unit">bpm</span>{{else}}No data{{end}}</div>
     <div class="metric-label">Avg HR</div>
   </div>
   <div class="metric">
@@ -65,7 +65,7 @@
     <div><span>Sport</span><b>{{.Sport}}{{if .Sub}} / {{.Sub}}{{end}}</b></div>
     <div><span>Avg speed</span><b>{{printf "%.2f m/s" .AvgSpd}}</b></div>
     <div><span>Calories</span><b>{{.Cals}}</b></div>
-    {{if .AerobicTE.Valid}}<div><span>Aerobic TE</span><b>{{printf "%.1f" .AerobicTE.Float64}}</b></div>{{end}}
+    <div><span>Aerobic TE</span><b>{{if .AerobicTE.Valid}}{{printf "%.1f" .AerobicTE.Float64}}{{else}}0.0{{end}}</b></div>
     <div><span>Anaerobic TE</span><b>{{if .AnaerobicTE.Valid}}{{printf "%.1f" .AnaerobicTE.Float64}}{{else}}0.0{{end}}</b></div>
   </div>
 </div>
@@ -139,7 +139,7 @@ const commonOpts = ()=>({
         const spd = SPD[i];
         if (spd!=null && spd>0) pacePts.push({x:t, y:1000/Number(spd)});
         // HR
-        if (HR[i]!=null) hrPts.push({x:t, y:Number(HR[i])});
+        if (HR[i]!=null && Number(HR[i]) !== 255) hrPts.push({x:t, y:Number(HR[i])});
       }
 
       // Elev axis bounds with padding
@@ -202,23 +202,32 @@ new Chart(paceC.getContext('2d'), {
 });
 
 // Heart rate
-new Chart(hrC.getContext('2d'), {
-  type: 'line',
-  data: { datasets: [{ data: hrPts, borderWidth: 1.6, borderColor: '#dc2626' }] },
-  options: {
-    ...commonOpts(),
-    scales: {
-      x: { ...commonOpts().scales.x, min: xmin, max: xmax },
-      y: { min: hrMin, max: hrMax, ticks: { callback: (v)=> `${Math.round(v)} bpm` } }
-    },
-    plugins: {
-      ...commonOpts().plugins,
-      tooltip: { ...commonOpts().plugins.tooltip,
-        callbacks: { ...commonOpts().plugins.tooltip.callbacks, label: (c)=> `${Math.round(c.parsed.y)} bpm` }
+if (hrPts.length === 0) {
+  const ctx = hrC.getContext('2d');
+  ctx.font = '16px system-ui';
+  ctx.fillStyle = '#9ca3af';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('No data', hrC.width/2, hrC.height/2);
+} else {
+  new Chart(hrC.getContext('2d'), {
+    type: 'line',
+    data: { datasets: [{ data: hrPts, borderWidth: 1.6, borderColor: '#dc2626' }] },
+    options: {
+      ...commonOpts(),
+      scales: {
+        x: { ...commonOpts().scales.x, min: xmin, max: xmax },
+        y: { min: hrMin, max: hrMax, ticks: { callback: (v)=> `${Math.round(v)} bpm` } }
+      },
+      plugins: {
+        ...commonOpts().plugins,
+        tooltip: { ...commonOpts().plugins.tooltip,
+          callbacks: { ...commonOpts().plugins.tooltip.callbacks, label: (c)=> `${Math.round(c.parsed.y)} bpm` }
+        }
       }
     }
-  }
-});
+  });
+}
 
 
 
@@ -241,6 +250,17 @@ new Chart(hrC.getContext('2d'), {
 
           // Calculate total time for percentage calculation
           const totalSeconds = zones ? zones.reduce((sum, z) => sum + z.time_seconds, 0) : 0;
+
+          // Check if there's any HR zone data
+          if (!zones || zones.length === 0 || totalSeconds === 0) {
+            const ctx = hrZonesC.getContext('2d');
+            ctx.font = '16px system-ui';
+            ctx.fillStyle = '#9ca3af';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText('No data', hrZonesC.width/2, hrZonesC.height/2);
+            return;
+          }
 
           // Create labels and data arrays for all zones (5 to 1), always show all zones
           const labels = [];

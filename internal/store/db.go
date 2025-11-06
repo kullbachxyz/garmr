@@ -191,11 +191,11 @@ func (db *DB) CalculateHRZonesForActivity(activityID int64, maxHR int) error {
 		return nil // Can't calculate zones without max HR
 	}
 
-	// Get HR records for this activity
+	// Get HR records for this activity (exclude 255 which is invalid sensor data)
 	rows, err := db.Query(`
 		SELECT t_offset_s, hr
 		FROM records
-		WHERE activity_id = ? AND hr IS NOT NULL
+		WHERE activity_id = ? AND hr IS NOT NULL AND hr != 255
 		ORDER BY t_offset_s`, activityID)
 	if err != nil {
 		return err

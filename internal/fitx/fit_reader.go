@@ -86,8 +86,8 @@ func ParseFIT(path string) (Activity, []Record, []Lap, []HRZone, error) {
 		SubSport:     s.SubSport.String(),
 		DurationS:    durS,
 		DistanceM:    distM,
-		AvgHR:        int(s.AvgHeartRate),
-		MaxHR:        int(s.MaxHeartRate),
+		AvgHR:        func() int { if s.AvgHeartRate == 255 { return 0 } else { return int(s.AvgHeartRate) } }(),
+		MaxHR:        func() int { if s.MaxHeartRate == 255 { return 0 } else { return int(s.MaxHeartRate) } }(),
 		AvgSpeedMPS:  avgSpd,
 		Calories:     int(s.TotalCalories),
 		AscentM:      float64(s.TotalAscent),
@@ -132,7 +132,7 @@ func ParseFIT(path string) (Activity, []Record, []Lap, []HRZone, error) {
 		}
 
 		// HR/Cad/Temp/Power (copy if non-zero)
-		if rr.HeartRate != 0 { v := int(rr.HeartRate); r.HR = &v }
+		if rr.HeartRate != 0 && rr.HeartRate != 255 { v := int(rr.HeartRate); r.HR = &v }
 		if rr.Cadence   != 0 { v := int(rr.Cadence);   r.Cad = &v }
 		if rr.Temperature != 0 {
 			v := float64(int16(rr.Temperature)) // library often exposes as int8/uint8 → cast via int16
@@ -154,8 +154,8 @@ func ParseFIT(path string) (Activity, []Record, []Lap, []HRZone, error) {
 			StartOff: int(lp.StartTime.Sub(s.StartTime).Seconds()),
 			DurS:     dur,
 			DistM:    dst,
-			AvgHR:    int(lp.AvgHeartRate),
-			MaxHR:    int(lp.MaxHeartRate),
+			AvgHR:    func() int { if lp.AvgHeartRate == 255 { return 0 } else { return int(lp.AvgHeartRate) } }(),
+			MaxHR:    func() int { if lp.MaxHeartRate == 255 { return 0 } else { return int(lp.MaxHeartRate) } }(),
 			AvgSpd:   avg,
 		}
 		laps = append(laps, l)

@@ -51,7 +51,7 @@ func (s *Server) handleActivitySeries(w http.ResponseWriter, r *http.Request) {
 	// t_bin = floor(t_offset_s / bucket) * bucket
 	rows, err := s.db.Query(`
 		SELECT (t_offset_s / ?) * ? AS t_bin,
-		       AVG(hr)        AS hr,
+		       AVG(CASE WHEN hr != 255 THEN hr END) AS hr,
 		       AVG(speed_mps) AS spd,
 		       AVG(elev_m)    AS elev
 		FROM records
