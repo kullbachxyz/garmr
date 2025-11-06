@@ -1,0 +1,27 @@
+{{define "content"}}
+<h1>Activities</h1>
+
+<form method="GET" style="margin: 0 0 12px 0;">
+  <label for="sport" style="margin-right:8px; color:#6b7280;">Filter by sport:</label>
+  <select id="sport" name="sport" onchange="this.form.submit()">
+    <option value="" {{if eq .CurrentSport ""}}selected{{end}}>All</option>
+    {{range .Sports}}
+      <option value="{{.}}" {{if eq $.CurrentSport .}}selected{{end}}>{{.}}</option>
+    {{end}}
+  </select>
+</form>
+
+<table class="tbl">
+  <tr><th>Start</th><th>Sport</th><th>Distance</th><th>Duration</th></tr>
+  {{range .Items}}
+  <tr>
+    <td><a href="/activity/{{.ID}}">{{trimUTC .Start}}</a></td>
+    <td>{{.Sport}}</td>
+    <td>{{printf "%.2f km" .DistKm}}</td>
+    <td>{{fmtDuration .DurS}}</td>
+  </tr>
+  {{else}}
+  <tr><td colspan="4">No activities yet.</td></tr>
+  {{end}}
+</table>
+{{end}}

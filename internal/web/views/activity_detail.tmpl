@@ -1,0 +1,341 @@
+{{define "content"}}
+<h1 style="margin-bottom:10px;">Activity</h1>
+
+<!-- HERO METRICS -->
+<div class="metrics">
+  <div class="metric">
+    <div class="metric-value">{{printf "%.2f" (div .DistM 1000)}} <span class="metric-unit">km</span></div>
+    <div class="metric-label">Distance</div>
+  </div>
+  <div class="metric">
+    <div class="metric-value">{{fmtDuration .DurS}}</div>
+    <div class="metric-label">Time</div>
+  </div>
+  <div class="metric">
+    <div class="metric-value">{{fmtPace .AvgSpd}}</div>
+    <div class="metric-label">Avg pace</div>
+  </div>
+  <div class="metric">
+    <div class="metric-value">{{.AvgHR}} <span class="metric-unit">bpm</span></div>
+    <div class="metric-label">Avg HR</div>
+  </div>
+  <div class="metric">
+    <div class="metric-value">{{printf "%.0f" .Asc}} <span class="metric-unit">m</span></div>
+    <div class="metric-label">Ascent</div>
+  </div>
+</div>
+
+<div class="card" style="margin-top:12px;">
+  <div class="card-head">Route</div>
+  <div id="leafmap" style="width:100%;height:460px;border:1px solid var(--border);border-radius:10px;"></div>
+</div>
+
+<!-- CHARTS (Chart.js) -->
+<div class="card" style="margin-top:12px;">
+  <div class="card-head">Elevation</div>
+  <div class="chart-wrap" style="position:relative; height:160px; width:100%;">
+    <canvas id="elev" class="chart-canvas"></canvas>
+  </div>
+</div>
+<div class="card" style="margin-top:12px;">
+  <div class="card-head">Pace</div>
+  <div class="chart-wrap" style="position:relative; height:170px; width:100%;">
+    <canvas id="pace" class="chart-canvas"></canvas>
+  </div>
+</div>
+<div class="card" style="margin-top:12px;">
+  <div class="card-head">Heart rate</div>
+  <div class="chart-wrap" style="position:relative; height:150px; width:100%;">
+    <canvas id="hr" class="chart-canvas"></canvas>
+  </div>
+</div>
+
+<div class="card" style="margin-top:12px;">
+  <div class="card-head">Time in HR Zones</div>
+  <div class="chart-wrap" style="position:relative; height:200px; width:100%;">
+    <canvas id="hrZones" class="chart-canvas"></canvas>
+  </div>
+</div>
+
+<!-- STAT GRID -->
+<div class="card" style="margin-top:12px;">
+  <div class="card-head">Statistics</div>
+  <div class="stats-grid">
+    <div><span>Start</span><b>{{trimUTC .Start}}</b></div>
+    <div><span>Sport</span><b>{{.Sport}}{{if .Sub}} / {{.Sub}}{{end}}</b></div>
+    <div><span>Avg speed</span><b>{{printf "%.2f m/s" .AvgSpd}}</b></div>
+    <div><span>Calories</span><b>{{.Cals}}</b></div>
+    {{if .AerobicTE.Valid}}<div><span>Aerobic TE</span><b>{{printf "%.1f" .AerobicTE.Float64}}</b></div>{{end}}
+    <div><span>Anaerobic TE</span><b>{{if .AnaerobicTE.Valid}}{{printf "%.1f" .AnaerobicTE.Float64}}{{else}}0.0{{end}}</b></div>
+  </div>
+</div>
+
+<!-- Chart.js -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+
+<script>
+// One global constant for this page
+const ACT_ID = {{.ID}};
+
+// ---------- Charts (Chart.js) ----------
+(function(){
+  const elevC = document.getElementById('elev');
+  const paceC = document.getElementById('pace');
+  const hrC   = document.getElementById('hr');
+
+  // format helpers
+  const secFmt = (s)=> {
+    s = Math.max(0, Math.round(s));
+    const h = (s/3600)|0, m = ((s%3600)/60)|0, sc = s%60;
+    return h>0 ? `${h}:${String(m).padStart(2,'0')}` : `${m}:${String(sc).padStart(2,'0')}`;
+  };
+  const paceTxt = (p)=> {
+    if(!isFinite(p)||p<=0) return '';
+    const m=(p/60)|0, s=Math.round(p%60);
+    return `${m}:${String(s).padStart(2,'0')} /km`;
+  };
+
+  // shared options
+const commonOpts = ()=>({
+  responsive: true,
+  maintainAspectRatio: false,
+  resizeDelay: 150,
+  animation: false,
+  parsing: false,
+  interaction: { mode: 'index', intersect: false },
+  elements: { point: { radius: 0, hitRadius: 6 } },
+  layout: { padding: { right: 0 } },
+  plugins: {
+    legend: { display: false },
+    decimation: { enabled: true, algorithm: 'min-max' },
+    tooltip: { callbacks: { title: (items)=> items.length ? secFmt(items[0].parsed.x) : '' } }
+  },
+  scales: {
+    x: {
+      type: 'linear',
+      bounds: 'data',      // <— hug data, not “nice” ticks
+      offset: false,       // <— no extra half-bar/point spacing
+      grid: { display: false },
+      ticks: { callback: (v)=> secFmt(v), maxRotation: 0, autoSkip: true }
+    }
+  }
+});
+
+  fetch('/api/series/'+ACT_ID+'?width='+Math.max(900, document.body.clientWidth-32))
+    .then(r=>r.json())
+    .then(S=>{
+      const T=S.t||[], HR=S.hr||[], SPD=S.spd||[], ELEV=S.elev||[];
+      const xmin = T[0] ?? 0, xmax = T[T.length-1] ?? 1;
+
+      // Build {x,y} arrays
+      const elevPts = [];
+      const pacePts = [];
+      const hrPts   = [];
+      for (let i=0;i<T.length;i++){
+        const t=T[i];
+        // Elevation
+        if (ELEV[i]!=null) elevPts.push({x:t, y:Number(ELEV[i])});
+        // Pace (sec/km)
+        const spd = SPD[i];
+        if (spd!=null && spd>0) pacePts.push({x:t, y:1000/Number(spd)});
+        // HR
+        if (HR[i]!=null) hrPts.push({x:t, y:Number(HR[i])});
+      }
+
+      // Elev axis bounds with padding
+      const elevVals = elevPts.map(p=>p.y);
+      let elevMin = elevVals.length? Math.min(...elevVals) : 0;
+      let elevMax = elevVals.length? Math.max(...elevVals) : 10;
+      const elevPad = Math.max(1, 0.05*(elevMax-elevMin));
+      elevMin -= elevPad; elevMax += elevPad;
+
+      // Pace bounds (inverted scale)
+      const paceVals = pacePts.map(p=>p.y);
+      let pMin = paceVals.length? Math.max(180, Math.min(...paceVals)) : 300; // 3:00/km
+      let pMax = paceVals.length? Math.min(900, Math.max(...paceVals)) : 600; // 15:00/km
+      if (!isFinite(pMin) || !isFinite(pMax) || pMin>=pMax){ pMin=300; pMax=600; }
+
+      // HR bounds
+      const hrVals = hrPts.map(p=>p.y);
+      let hrMin = hrVals.length? Math.max(80, Math.min(...hrVals)-5) : 100;
+      let hrMax = hrVals.length? Math.min(210, Math.max(...hrVals)+5) : 180;
+
+// Elevation
+new Chart(elevC.getContext('2d'), {
+  type: 'line',
+  data: { datasets: [{ data: elevPts, borderWidth: 1.6, borderColor: '#16a34a' }] },
+  options: {
+    ...commonOpts(),
+    scales: {
+      x: { ...commonOpts().scales.x, min: xmin, max: xmax },
+      y: {
+        min: elevMin, max: elevMax,
+        ticks: { callback: (v)=> `${Math.round(v)} m` }
+      }
+    },
+    plugins: {
+      ...commonOpts().plugins,
+      tooltip: { ...commonOpts().plugins.tooltip,
+        callbacks: { ...commonOpts().plugins.tooltip.callbacks, label: (c)=> `${Math.round(c.parsed.y)} m` }
+      }
+    }
+  }
+});
+
+// Pace (inverted)
+new Chart(paceC.getContext('2d'), {
+  type: 'line',
+  data: { datasets: [{ data: pacePts, borderWidth: 1.6, borderColor: '#2563eb' }] },
+  options: {
+    ...commonOpts(),
+    scales: {
+      x: { ...commonOpts().scales.x, min: xmin, max: xmax },
+      y: { reverse: true, min: pMin, max: pMax, ticks: { callback: (v)=> paceTxt(v) } }
+    },
+    plugins: {
+      ...commonOpts().plugins,
+      tooltip: { ...commonOpts().plugins.tooltip,
+        callbacks: { ...commonOpts().plugins.tooltip.callbacks, label: (c)=> paceTxt(c.parsed.y) }
+      }
+    }
+  }
+});
+
+// Heart rate
+new Chart(hrC.getContext('2d'), {
+  type: 'line',
+  data: { datasets: [{ data: hrPts, borderWidth: 1.6, borderColor: '#dc2626' }] },
+  options: {
+    ...commonOpts(),
+    scales: {
+      x: { ...commonOpts().scales.x, min: xmin, max: xmax },
+      y: { min: hrMin, max: hrMax, ticks: { callback: (v)=> `${Math.round(v)} bpm` } }
+    },
+    plugins: {
+      ...commonOpts().plugins,
+      tooltip: { ...commonOpts().plugins.tooltip,
+        callbacks: { ...commonOpts().plugins.tooltip.callbacks, label: (c)=> `${Math.round(c.parsed.y)} bpm` }
+      }
+    }
+  }
+});
+
+
+
+      // HR Zones horizontal bar chart
+      const hrZonesC = document.getElementById('hrZones');
+      fetch('/api/zones/'+ACT_ID)
+        .then(r=>r.json())
+        .then(zones=>{
+          const zoneLabels = ['Zone 5 (VO2 Max)', 'Zone 4 (Threshold)', 'Zone 3 (Aerobic)', 'Zone 2 (Base)', 'Zone 1 (Recovery)'];
+
+          // Get colors from CSS custom properties (Garmin Connect style)
+          const computedStyle = getComputedStyle(document.documentElement);
+          const zoneColors = [
+            computedStyle.getPropertyValue('--hr-zone-5').trim() || '#8b5cf6',
+            computedStyle.getPropertyValue('--hr-zone-4').trim() || '#ef4444',
+            computedStyle.getPropertyValue('--hr-zone-3').trim() || '#f59e0b',
+            computedStyle.getPropertyValue('--hr-zone-2').trim() || '#3b82f6',
+            computedStyle.getPropertyValue('--hr-zone-1').trim() || '#22c55e'
+          ];
+
+          // Calculate total time for percentage calculation
+          const totalSeconds = zones ? zones.reduce((sum, z) => sum + z.time_seconds, 0) : 0;
+
+          // Create labels and data arrays for all zones (5 to 1), always show all zones
+          const labels = [];
+          const data = [];
+          const colors = [];
+
+          // Loop from Zone 5 to Zone 1 (descending order)
+          for (let i = 5; i >= 1; i--) {
+            const zone = zones ? zones.find(z => z.zone === i) : null;
+            const timeMinutes = zone ? Math.round(zone.time_seconds / 60) : 0;
+            const timeSeconds = zone ? zone.time_seconds : 0;
+            const percentage = totalSeconds > 0 ? Math.round((timeSeconds / totalSeconds) * 100) : 0;
+
+            // Add percentage to label
+            const labelWithPercent = `${zoneLabels[5-i]} (${percentage}%)`;
+
+            labels.push(labelWithPercent);  // 5-i maps: 5->0, 4->1, 3->2, 2->3, 1->4
+            data.push(timeMinutes);
+            colors.push(zoneColors[5-i]);
+          }
+
+          new Chart(hrZonesC.getContext('2d'), {
+            type: 'bar',
+            data: {
+              labels: labels,
+              datasets: [{
+                data: data,
+                backgroundColor: colors,
+                borderWidth: 0
+              }]
+            },
+            options: {
+              indexAxis: 'y',  // Make it horizontal
+              responsive: true,
+              maintainAspectRatio: false,
+              animation: false,
+              plugins: {
+                legend: { display: false },
+                tooltip: {
+                  callbacks: {
+                    label: (c) => `${c.parsed.x} minutes`
+                  }
+                }
+              },
+              scales: {
+                x: {
+                  beginAtZero: true,
+                  title: { display: true, text: 'Time (minutes)' },
+                  ticks: { precision: 0 }
+                },
+                y: {
+                  grid: { display: false }
+                }
+              }
+            }
+          });
+        })
+        .catch(err => {
+          console.error('Failed to load HR zones:', err);
+          const ctx = hrZonesC.getContext('2d');
+          ctx.font = '14px system-ui';
+          ctx.fillStyle = '#dc2626';
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.fillText('Failed to load heart rate zones', hrZonesC.width/2, hrZonesC.height/2);
+        });
+    });
+})();  // CLOSE charts IIFE
+
+// ---------- Leaflet map IIFE ----------
+(async function(){
+  const box = document.getElementById('leafmap');
+
+  if (typeof L === 'undefined') {
+    await new Promise(r=>setTimeout(r, 0));
+  }
+
+  const gj = await fetch('/api/activity/'+ACT_ID).then(r=>r.json());
+  const coords = gj?.geometry?.coordinates || []; // [lon,lat]
+  if (!coords.length) { box.innerHTML = '<div style="padding:10px;color:#777;">No track</div>'; return; }
+
+  const latlngs = coords.map(([lon,lat]) => [lat,lon]);
+
+  const map = L.map('leafmap', { zoomControl: true, attributionControl: true });
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+    { maxZoom: 19, attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a>' }
+  ).addTo(map);
+
+  const route = L.polyline(latlngs, { color:'#2563eb', weight:3 }).addTo(map);
+  map.fitBounds(route.getBounds(), { padding: [16,16] });
+
+  L.circleMarker(latlngs[0],  {radius:4,color:'#10b981',fill:true,fillColor:'#10b981',fillOpacity:1}).addTo(map);
+  L.circleMarker(latlngs.at(-1), {radius:4,color:'#ef4444',fill:true,fillColor:'#ef4444',fillOpacity:1}).addTo(map);
+
+  setTimeout(()=>map.invalidateSize(), 0);
+})();
+</script>
+{{end}}

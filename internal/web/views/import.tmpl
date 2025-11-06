@@ -1,0 +1,135 @@
+{{define "content"}}
+<h1>Import Activities</h1>
+
+<!-- Upload Section -->
+<div class="card" style="margin-bottom: 20px;">
+  <div class="card-head">Upload FIT Files</div>
+  <p style="color: var(--muted); margin: 8px 0;">Select one or more .fit files from your device to upload and import.</p>
+
+  <form id="uploadForm" enctype="multipart/form-data" style="margin: 12px 0;">
+    <div style="margin-bottom: 12px;">
+      <input type="file" id="fitFiles" name="files" multiple accept=".fit"
+             style="padding: 8px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg);">
+    </div>
+    <button type="submit" id="uploadBtn"
+            style="padding: 8px 16px; border: 1px solid var(--btn-border); border-radius: 6px; background: var(--btn-bg); cursor: pointer;">
+      Upload & Import
+    </button>
+  </form>
+
+  <div id="uploadStatus" style="margin-top: 12px; color: var(--muted);"></div>
+  <div id="uploadProgress" style="margin-top: 8px; display: none;">
+    <div style="background: var(--border); height: 4px; border-radius: 2px; overflow: hidden;">
+      <div id="progressBar" style="background: #2563eb; height: 100%; width: 0%; transition: width 0.3s ease;"></div>
+    </div>
+  </div>
+</div>
+
+<!-- USB Import Section -->
+<div class="card" style="margin-bottom: 20px;">
+  <div class="card-head">USB/Device Import</div>
+  <p style="color: var(--muted); margin: 8px 0;">Scan for connected Garmin devices and import activities directly.</p>
+
+  <button id="importBtn"
+          style="padding: 8px 16px; border: 1px solid var(--btn-border); border-radius: 6px; background: var(--btn-bg); cursor: pointer; margin: 12px 0;">
+    Scan & Import from USB
+  </button>
+
+  <div id="importStatus" style="margin-top: 12px; color: var(--muted);"></div>
+</div>
+
+
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+  const uploadForm = document.getElementById('uploadForm');
+  const uploadBtn = document.getElementById('uploadBtn');
+  const uploadStatus = document.getElementById('uploadStatus');
+  const uploadProgress = document.getElementById('uploadProgress');
+  const progressBar = document.getElementById('progressBar');
+  const importBtn = document.getElementById('importBtn');
+  const importStatus = document.getElementById('importStatus');
+
+  // File upload handling
+  uploadForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+
+    const fileInput = document.getElementById('fitFiles');
+    const files = fileInput.files;
+
+    if (files.length === 0) {
+      uploadStatus.textContent = 'Please select at least one file.';
+      uploadStatus.style.color = '#dc2626';
+      return;
+    }
+
+    uploadBtn.disabled = true;
+    uploadBtn.textContent = 'Uploading...';
+    uploadStatus.textContent = `Uploading ${files.length} file(s)...`;
+    uploadStatus.style.color = 'var(--muted)';
+    uploadProgress.style.display = 'block';
+    progressBar.style.width = '0%';
+
+    const formData = new FormData();
+    for (let file of files) {
+      formData.append('files', file);
+    }
+
+    try {
+      const response = await fetch('/api/upload', {
+        method: 'POST',
+        body: formData
+      });
+
+      const result = await response.json();
+
+      if (response.ok) {
+        progressBar.style.width = '100%';
+        uploadStatus.textContent = `Successfully processed ${files.length} file(s). ${result.imported || 0} new activities imported, ${result.duplicates || 0} duplicates skipped.`;
+        uploadStatus.style.color = '#059669';
+        fileInput.value = ''; // Clear the file input
+      } else {
+        uploadStatus.textContent = `Upload failed: ${result.error || 'Unknown error'}`;
+        uploadStatus.style.color = '#dc2626';
+      }
+    } catch (error) {
+      uploadStatus.textContent = `Upload error: ${error.message}`;
+      uploadStatus.style.color = '#dc2626';
+    }
+
+    uploadBtn.disabled = false;
+    uploadBtn.textContent = 'Upload & Import';
+    setTimeout(() => {
+      uploadProgress.style.display = 'none';
+    }, 2000);
+  });
+
+  // USB import handling
+  importBtn.addEventListener('click', async () => {
+    importBtn.disabled = true;
+    importBtn.textContent = 'Scanning...';
+    importStatus.textContent = 'Scanning for devices...';
+    importStatus.style.color = 'var(--muted)';
+
+    try {
+      const response = await fetch('/api/import', { method: 'POST' });
+      const result = await response.json();
+
+      if (response.ok) {
+        importStatus.textContent = result.message || 'Import completed successfully.';
+        importStatus.style.color = '#059669';
+      } else {
+        importStatus.textContent = `Import failed: ${result.error || 'Unknown error'}`;
+        importStatus.style.color = '#dc2626';
+      }
+    } catch (error) {
+      importStatus.textContent = `Import error: ${error.message}`;
+      importStatus.style.color = '#dc2626';
+    }
+
+    importBtn.disabled = false;
+    importBtn.textContent = 'Scan & Import from USB';
+  });
+
+});
+</script>
+{{end}}

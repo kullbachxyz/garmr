@@ -1,0 +1,240 @@
+{{define "content"}}
+<h1>Statistics</h1>
+
+<!-- Sport Filter -->
+<form method="GET" style="margin: 0 0 12px 0;">
+  <label for="sport" style="margin-right:8px; color:#6b7280;">Filter by sport:</label>
+  <select id="sport" name="sport" onchange="this.form.submit()">
+    <option value="" {{if eq .CurrentSport ""}}selected{{end}}>All</option>
+    {{range .Sports}}
+      <option value="{{.}}" {{if eq $.CurrentSport .}}selected{{end}}>{{.}}</option>
+    {{end}}
+  </select>
+</form>
+
+  <!-- Tabs -->
+  <div class="tabs" style="display:flex; gap:8px; margin-bottom:10px;">
+    <button id="tab-month" class="tab active" type="button"
+      style="padding:6px 10px; border-radius:8px; border:1px solid var(--border); background:var(--bg);">
+      Month
+    </button>
+    <button id="tab-year" class="tab" type="button"
+      style="padding:6px 10px; border-radius:8px; border:1px solid var(--border); background:transparent;">
+      Year
+    </button>
+    <div style="flex:1"></div>
+
+    <!-- Period selects -->
+    <div id="controls-month" style="display:flex; gap:8px; align-items:center;">
+      <label>Month:
+        <select id="select-month"></select>
+      </label>
+    </div>
+    <div id="controls-year" style="display:none; gap:8px; align-items:center;">
+      <label>Year:
+        <select id="select-year"></select>
+      </label>
+    </div>
+  </div>
+
+  <!-- Charts -->
+  <div id="chart-month" style="position:relative; height:320px; width:100%; display:block;">
+    <canvas id="chartMonthCanvas"></canvas>
+  </div>
+  <div id="chart-year" style="position:relative; height:320px; width:100%; display:none;">
+    <canvas id="chartYearCanvas"></canvas>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+  const $ = (id) => document.getElementById(id);
+
+  const tabMonth  = $('tab-month');
+  const tabYear   = $('tab-year');
+  const ctrlMonth = $('controls-month');
+  const ctrlYear  = $('controls-year');
+  const wrapMonth = $('chart-month');
+  const wrapYear  = $('chart-year');
+  const selMonth  = $('select-month');
+  const selYear   = $('select-year');
+
+  // Get current sport filter from URL
+  const urlParams = new URLSearchParams(window.location.search);
+  const currentSport = urlParams.get('sport') || '';
+
+  let chartMonth = null, chartYear = null;
+
+  function activate(tab){
+    const monthActive = (tab === 'month');
+    tabMonth.classList.toggle('active', monthActive);
+    tabYear.classList.toggle('active', !monthActive);
+    ctrlMonth.style.display = monthActive ? 'flex' : 'none';
+    ctrlYear.style.display  = monthActive ? 'none'  : 'flex';
+    wrapMonth.style.display = monthActive ? 'block' : 'none';
+    wrapYear.style.display  = monthActive ? 'none'  : 'block';
+  }
+
+  function showEmpty(canvasId, msg = 'No data for selection') {
+    const ctx = document.getElementById(canvasId).getContext('2d');
+    const {width, height} = ctx.canvas;
+    ctx.clearRect(0,0,width,height);
+    ctx.font = '14px system-ui'; ctx.fillStyle = '#6b7280';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(msg, width/2, height/2);
+  }
+
+  // Sport colors - consistent mapping
+  const sportColors = {
+    'running': 'rgba(34, 197, 94, 0.8)',    // green
+    'cycling': 'rgba(37, 99, 235, 0.8)',    // blue
+    'walking': 'rgba(251, 146, 60, 0.8)',   // orange
+    'hiking': 'rgba(139, 69, 19, 0.8)',     // brown
+    'swimming': 'rgba(6, 182, 212, 0.8)',   // cyan
+    'other': 'rgba(107, 114, 128, 0.8)',    // gray
+    'generic': 'rgba(168, 85, 247, 0.8)'    // purple
+  };
+
+  function getSportColor(sport) {
+    const sportLower = (sport || '').toLowerCase();
+    if (sportColors[sportLower]) return sportColors[sportLower];
+    if (sportLower.includes('run')) return sportColors.running;
+    if (sportLower.includes('cycl') || sportLower.includes('bik')) return sportColors.cycling;
+    if (sportLower.includes('walk')) return sportColors.walking;
+    if (sportLower.includes('hik')) return sportColors.hiking;
+    if (sportLower.includes('swim')) return sportColors.swimming;
+    return sportColors.generic;
+  }
+
+  function renderBar(canvasId, data, title){
+    const ctx = document.getElementById(canvasId).getContext('2d');
+    const prev = canvasId === 'chartMonthCanvas' ? chartMonth : chartYear;
+    if (prev) prev.destroy();
+
+    if (!data.labels || data.labels.length === 0) {
+      showEmpty(canvasId);
+      if (canvasId==='chartMonthCanvas') chartMonth=null; else chartYear=null;
+      return;
+    }
+
+    let datasets = [];
+
+    if (data.hasSports && data.sports) {
+      // Multi-sport stacked bar chart
+      const sportsKeys = Object.keys(data.sports).sort();
+      datasets = sportsKeys.map(sport => ({
+        label: sport,
+        data: data.sports[sport] || [],
+        borderWidth: 0,
+        backgroundColor: getSportColor(sport)
+      }));
+    } else {
+      // Single dataset (filtered by sport or old format)
+      const vals = (data.kms || []).map(v => +v || 0);
+      datasets = [{
+        label: title,
+        data: vals,
+        borderWidth: 0,
+        backgroundColor: 'rgba(37, 99, 235, 0.85)'
+      }];
+    }
+
+    const chart = new Chart(ctx, {
+      type: 'bar',
+      data: {
+        labels: data.labels,
+        datasets: datasets
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        animation: false,
+        plugins: {
+          legend: {
+            display: true,
+            position: 'top'
+          },
+          tooltip: {
+            callbacks: {
+              label: c => `${c.dataset.label}: ${(c.parsed.y??0).toFixed(1)} km`
+            }
+          }
+        },
+        scales: {
+          x: {
+            stacked: data.hasSports,
+            ticks: { autoSkip: true, maxRotation: 0 },
+            grid: { display:false }
+          },
+          y: {
+            stacked: data.hasSports,
+            beginAtZero: true,
+            title: { display: true, text: 'km' },
+            ticks: { precision: 0 }
+          }
+        }
+      }
+    });
+    if (canvasId === 'chartMonthCanvas') chartMonth = chart; else chartYear = chart;
+  }
+
+  const fetchJSON = async (url) => {
+    const res = await fetch(url, { cache: 'no-store' });
+    if (!res.ok) throw new Error(url + ' -> ' + res.status);
+    return res.json();
+  };
+
+  async function populatePeriods(){
+    const p = await fetchJSON('/api/stats/periods?_t=' + Date.now());
+    selMonth.innerHTML = '';
+    for (const m of (p.months || [])) {
+      const opt = document.createElement('option');
+      opt.value = m.ym; opt.textContent = m.label; selMonth.appendChild(opt);
+    }
+    selYear.innerHTML = '';
+    for (const y of (p.years || [])) {
+      const opt = document.createElement('option');
+      opt.value = y; opt.textContent = y; selYear.appendChild(opt);
+    }
+    if (p.months?.length) selMonth.value = p.months[0].ym;
+    if (p.years?.length)  selYear.value  = p.years[0];
+  }
+
+  async function loadMonth(){
+    const ym = selMonth.value;
+    if (!ym) { showEmpty('chartMonthCanvas'); return; }
+    const [year, month] = ym.split('-');
+    const params = { gran:'month', year, month, _t: Date.now().toString() };
+    if (currentSport) params.sport = currentSport;
+    const qs = new URLSearchParams(params).toString();
+    const data = await fetchJSON('/api/stats?' + qs);
+    renderBar('chartMonthCanvas', data, 'Daily mileage');
+  }
+
+  async function loadYear(){
+    const year = selYear.value;
+    if (!year) { showEmpty('chartYearCanvas'); return; }
+    const params = { gran:'year', year, _t: Date.now().toString() };
+    if (currentSport) params.sport = currentSport;
+    const qs = new URLSearchParams(params).toString();
+    const data = await fetchJSON('/api/stats?' + qs);
+    renderBar('chartYearCanvas', data, 'Monthly mileage');
+  }
+
+  // Events
+  tabMonth.addEventListener('click', () => { activate('month'); loadMonth(); });
+  tabYear .addEventListener('click', () => { activate('year');  loadYear();  });
+  selMonth.addEventListener('change', loadMonth);
+  selYear .addEventListener('change', loadYear);
+
+  // Init
+  (async function init(){
+    activate('month');
+    await populatePeriods();
+    if (selMonth.value) await loadMonth();
+    if (selYear.value)  await loadYear();
+  })();
+});
+</script>
+{{end}}

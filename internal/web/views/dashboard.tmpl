@@ -1,0 +1,59 @@
+{{define "content"}}
+<h1>Dashboard</h1>
+<form method="GET" style="margin-bottom:12px;">
+  <label for="sport" style="margin-right:8px; color:#6b7280;">Filter stats by sport:</label>
+  <select id="sport" name="sport" onchange="this.form.submit()">
+    <option value="" {{if eq .CurrentSport ""}}selected{{end}}>All</option>
+    {{range .Sports}}
+      <option value="{{.}}" {{if eq $.CurrentSport .}}selected{{end}}>{{.}}</option>
+    {{end}}
+  </select>
+</form>
+
+<!-- ====== PERIOD STATS ====== -->
+<section class="cards-grid" style="display:grid; grid-template-columns: 1fr; gap:16px; margin-bottom:20px;">
+
+  <!-- MONTH -->
+  <div class="card">
+    <div class="card-head">This month <span style="color:#6b7280; font-weight:normal;">({{.MonthLabel}})</span></div>
+    <div class="metrics">
+      <div class="metric"><div class="metric-value">{{printf "%.2f" (div .Month.DistM 1000)}} <span class="metric-unit">km</span></div><div class="metric-label">Distance</div></div>
+      <div class="metric"><div class="metric-value">{{fmtDuration .Month.DurS}}</div><div class="metric-label">Time</div></div>
+      <div class="metric"><div class="metric-value">{{fmtPace .Month.AvgSpd}}</div><div class="metric-label">Avg pace</div></div>
+      <div class="metric"><div class="metric-value">{{printf "%.0f" .Month.ElevM}} <span class="metric-unit">m</span></div><div class="metric-label">Ascent</div></div>
+      <div class="metric"><div class="metric-value">{{.Month.Count}}</div><div class="metric-label">Activities</div></div>
+    </div>
+  </div>
+
+  <!-- YEAR -->
+  <div class="card">
+    <div class="card-head">This year <span style="color:#6b7280; font-weight:normal;">({{.YearLabel}})</span></div>
+    <div class="metrics">
+      <div class="metric"><div class="metric-value">{{printf "%.2f" (div .Year.DistM 1000)}} <span class="metric-unit">km</span></div><div class="metric-label">Distance</div></div>
+      <div class="metric"><div class="metric-value">{{fmtDuration .Year.DurS}}</div><div class="metric-label">Time</div></div>
+      <div class="metric"><div class="metric-value">{{fmtPace .Year.AvgSpd}}</div><div class="metric-label">Avg pace</div></div>
+      <div class="metric"><div class="metric-value">{{printf "%.0f" .Year.ElevM}} <span class="metric-unit">m</span></div><div class="metric-label">Ascent</div></div>
+      <div class="metric"><div class="metric-value">{{.Year.Count}}</div><div class="metric-label">Activities</div></div>
+    </div>
+  </div>
+
+</section>
+
+<!-- ====== RECENT ACTIVITIES ====== -->
+<section>
+  <h2>Recent activities</h2>
+  <table class="tbl">
+    <tr><th>Start</th><th>Sport</th><th>Distance</th><th>Duration</th></tr>
+    {{range .Latest}}
+    <tr>
+      <td><a href="/activity/{{.ID}}">{{trimUTC .Start}}</a></td>
+      <td>{{.Sport}}</td>
+      <td>{{printf "%.2f km" .DistKm}}</td>
+      <td>{{fmtDuration .DurS}}</td>
+    </tr>
+    {{else}}
+    <tr><td colspan="4">No activities yet.</td></tr>
+    {{end}}
+  </table>
+</section>
+{{end}}
