@@ -50,13 +50,10 @@ Create a `garmr.json` configuration file:
   "db_path": "./data/garmr.db",
   "raw_store": "./data/raw_fit",
   "http_addr": "127.0.0.1:8765",
-  "poll_ms": 3000,
-  "search_roots": ["/Volumes", "/media"],
-  "garmin_dirs": [
-    "GARMIN/Activity",
-    "GARMIN/Activities"
-  ],
-  "use_cdn_tiles": true
+  "poll_ms": 0,
+  "search_roots": ["/Volumes"],
+  "garmin_dirs": ["/Volumes/GARMIN/GARMIN/Activity"],
+  "use_cdn_tiles": false
 }
 ```
 
