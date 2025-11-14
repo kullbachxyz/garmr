@@ -1,7 +1,7 @@
 .git
 .gitignore
 data
-garmrd
+/garmrd
 *.db
 *.log
 *.tmp
