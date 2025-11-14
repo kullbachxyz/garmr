@@ -4,30 +4,11 @@ A self-hosted fitness activity tracker for Garmin FIT files. Import, analyze, an
 
 ## Quick Start (Docker Compose)
 
-1. Install [Docker Desktop](https://www.docker.com/products/docker-desktop/) (or Docker Engine) and ensure it is running.
-2. Clone the repository:
    ```bash
-   git clone https://github.com/yourusername/garmr.git
+   git clone https://github.com/kullbachxyz/garmr.git
    cd garmr
-   ```
-3. Edit `garmr.json` and set `http_addr` to `0.0.0.0:8765` so the HTTP server listens on all container interfaces.
-4. Create `docker-compose.yml` (or reuse the snippet below) and launch the stack:
-   ```yaml
-   services:
-     garmr:
-       build: .
-       ports:
-         - "8765:8765"
-       volumes:
-         - garmr_data:/app/data
-         - ./garmr.json:/app/garmr.json:ro
-   volumes:
-     garmr_data: {}
-   ```
-   ```bash
    docker compose up --build
    ```
-5. When logs show `http: listening on 0.0.0.0:8765`, browse to `http://localhost:8765` and start importing FIT files. Press `Ctrl+C` to stop; the named volume `garmr_data` keeps the SQLite DB and raw FIT files.
 
 ## Features
 
