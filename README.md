@@ -1,42 +1,45 @@
 # Garmr
 
-A self-hosted fitness activity tracker for Garmin FIT files. Import, analyze, and visualize your fitness data with detailed charts, heart rate zones, and training metrics.
+A self-hosted fitness activity tracker for Garmin FIT files. Import, analyze, and visualize your fitness data with detailed charts, heart-rate zones, and training metrics.
+
+## Quick Start (Docker Compose)
+
+1. Install [Docker Desktop](https://www.docker.com/products/docker-desktop/) (or Docker Engine) and ensure it is running.
+2. Clone the repository:
+   ```bash
+   git clone https://github.com/yourusername/garmr.git
+   cd garmr
+   ```
+3. Edit `garmr.json` and set `http_addr` to `0.0.0.0:8765` so the HTTP server listens on all container interfaces.
+4. Create `docker-compose.yml` (or reuse the snippet below) and launch the stack:
+   ```yaml
+   services:
+     garmr:
+       build: .
+       ports:
+         - "8765:8765"
+       volumes:
+         - garmr_data:/app/data
+         - ./garmr.json:/app/garmr.json:ro
+   volumes:
+     garmr_data: {}
+   ```
+   ```bash
+   docker compose up --build
+   ```
+5. When logs show `http: listening on 0.0.0.0:8765`, browse to `http://localhost:8765` and start importing FIT files. Press `Ctrl+C` to stop; the named volume `garmr_data` keeps the SQLite DB and raw FIT files.
 
 ## Features
 
-- **Activity Import**: Import FIT files from USB-connected Garmin devices or via web upload
-- **Rich Visualizations**: Interactive charts for elevation, pace, and heart rate data
-- **Heart Rate Analysis**: 5-zone heart rate analysis with time-in-zone breakdowns
-- **Training Metrics**: Aerobic and anaerobic training effect tracking (Garmin devices)
-- **Multi-Sport Support**: Track running, cycling, hiking, and other activities
-- **Responsive Design**: Works on desktop and mobile devices
-- **Statistics Dashboard**: Aggregated stats with sport filtering
+- **Activity Import**: USB scanning plus manual FIT upload.
+- **Rich Visualizations**: Elevation, pace, heart-rate charts, and zone breakdowns.
+- **Training Metrics**: Aerobic/anaerobic training effect summaries.
+- **Multi-Sport**: Running, cycling, hiking, and other FIT-compatible workouts.
+- **Responsive UI**: Works on desktop and mobile browsers.
 
-## Installation
+## Configuration
 
-### Prerequisites
-
-- Go 1.21 or later
-- Git
-- Docker (optional, for containerized deploys)
-
-### Building from Source
-
-```bash
-# Clone the repository
-git clone https://github.com/yourusername/garmr.git
-cd garmr
-
-# Build the binary
-go build -trimpath -ldflags="-s -w" -o garmrd ./cmd/garmrd
-
-# Run the application
-./garmrd
-```
-
-### Configuration
-
-Create a `garmr.json` configuration file:
+The server reads `garmr.json` by default:
 
 ```json
 {
@@ -50,72 +53,43 @@ Create a `garmr.json` configuration file:
 }
 ```
 
-The application uses `garmr.json` by default:
+Key fields:
+- `db_path`: SQLite database file.
+- `raw_store`: Folder for original FIT uploads.
+- `http_addr`: HTTP bind address (set to `0.0.0.0:8765` inside Docker).
+- `poll_ms`: USB polling interval in milliseconds (0 disables polling).
+- `search_roots` / `garmin_dirs`: Candidate paths for attached Garmin storage.
+- `use_cdn_tiles`: `true` to load map tiles from a CDN, `false` to self-host.
+
+Override the config path with `./garmrd -config ./my-config.json` or pass `-config` through Docker (`docker run garmr -config /path`).
+
+## Local Development (Go)
+
+Prerequisites: Go 1.21+ and Git.
 
 ```bash
-# Uses ./garmr.json automatically
-./garmrd
+git clone https://github.com/yourusername/garmr.git
+cd garmr
 
-# Or specify a custom config file
-./garmrd -config ./my-config.json
+go build -trimpath -ldflags="-s -w" -o garmrd ./cmd/garmrd
+./garmrd
 ```
 
-**Configuration Options:**
-- `db_path`: SQLite database file location
-- `raw_store`: Directory to store original FIT files
-- `http_addr`: HTTP server address and port
-- `poll_ms`: Background USB polling interval (0 to disable)
-- `search_roots`: Root paths to search for Garmin devices
-- `garmin_dirs`: Subdirectories within Garmin devices containing activities
-- `use_cdn_tiles`: Use CDN for map tiles (true) or self-host (false)
-
-## Docker
-
-Build and run the containerized server:
+The multi-stage `Dockerfile` in the repo builds the same binary with Go 1.25.1:
 
 ```bash
 docker build -t garmr .
-
-docker run --rm \
-  -p 8765:8765 \
-  -v garmr_data:/app/data \
-  -v $PWD/garmr.json:/app/garmr.json:ro \
-  garmr
-```
-
-Set `http_addr` to `0.0.0.0:8765` (or override via `-config`) so the UI is reachable outside the container. When using Docker Compose, mount `/app/data` to persist the SQLite database and raw FIT files:
-
-```yaml
-services:
-  garmr:
-    build: .
-    ports:
-      - "8765:8765"
-    volumes:
-      - garmr_data:/app/data
-      - ./garmr.json:/app/garmr.json:ro
-volumes:
-  garmr_data: {}
+docker run --rm -p 8765:8765 -v garmr_data:/app/data -v $PWD/garmr.json:/app/garmr.json:ro garmr
 ```
 
 ## Usage
 
-1. Start the application: `./garmrd`
-2. Open your browser to `http://localhost:8765`
-3. Import activities:
-   - **USB Import**: Connect your Garmin device and use the "Scan & Import from USB" button
-   - **File Upload**: Drag and drop FIT files or use the file picker
+1. Start the server (locally or via Docker).
+2. Open `http://localhost:8765`.
+3. Import activities via USB scan or FIT upload and review charts, heart-rate zones, and training metrics.
 
-## Supported Devices
+## Architecture & Tech Stack
 
-Any Garmin device that produces standard FIT files. Tested with:
-- Garmin watches (Forerunner, Fenix, etc.)
-- Garmin Edge cycling computers
-- Other ANT+ and FIT-compatible devices
-
-## Architecture
-
-- **Backend**: Go with SQLite database
-- **Frontend**: HTML templates with Chart.js for visualizations
-- **Mapping**: Leaflet with OpenStreetMap tiles
-- **FIT Parsing**: github.com/tormoder/fit library
+- **Backend**: Go + SQLite (migrations via Goose in `internal/store/migrations`).
+- **FIT Parsing**: [`github.com/tormoder/fit`](https://github.com/tormoder/fit).
+- **Frontend**: HTML templates with Chart.js visualizations and Leaflet + OSM tiles.
