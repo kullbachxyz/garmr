@@ -30,7 +30,7 @@ type importResp struct {
 }
 
 type importPageVM struct {
-	// Add any data needed for the import page
+	CurrentUser *userView
 }
 
 type uploadResponse struct {
@@ -133,7 +133,9 @@ func (s *Server) handleLogsSSE(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleImportPage(w http.ResponseWriter, r *http.Request) {
-	vm := importPageVM{}
+	vm := importPageVM{
+		CurrentUser: s.currentUser(r),
+	}
 	if err := s.tplImport.ExecuteTemplate(w, "layout", vm); err != nil {
 		http.Error(w, err.Error(), 500)
 		return

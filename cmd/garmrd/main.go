@@ -27,9 +27,17 @@ func main() {
 	c := cfg.Load(actualConfigPath)
 
 	db, err := store.Open(c.DBPath)
-	if err != nil { log.Fatalf("db open: %v", err) }
+	if err != nil {
+		log.Fatalf("db open: %v", err)
+	}
 	defer db.Close()
-	if err := store.Migrate(db); err != nil { log.Fatalf("migrate: %v", err) }
+	if err := store.Migrate(db); err != nil {
+		log.Fatalf("migrate: %v", err)
+	}
+
+	if err := db.EnsureInitialUser(c.AuthUser, c.AuthPass); err != nil {
+		log.Fatalf("auth bootstrap: %v", err)
+	}
 
 	im := importer.New(c, db)
 

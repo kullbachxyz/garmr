@@ -2,87 +2,61 @@
 
 A self-hosted fitness activity tracker for Garmin FIT files. Import, analyze, and visualize your fitness data with detailed charts, heart-rate zones, and training metrics.
 
-## Quick Start (Docker Compose)
+## Quick Start
 
-   ```bash
-   git clone https://github.com/kullbachxyz/garmr.git
-   cd garmr
-   docker compose up --build
-   ```
+```bash
+git clone https://github.com/kullbachxyz/garmr.git
+cd garmr
+# edit garmr.json → set "http_addr": "0.0.0.0:8765",
+# and add a throwaway "auth_user"/"auth_pass" for the first login
+docker compose up --build
+```
 
-## Features
+Visit `http://localhost:8765`, log in with the seed credentials, then open **Account → Update password**. After the first user exists you can remove the bootstrap values.
 
-- **Activity Import**: USB scanning plus manual FIT upload.
-- **Rich Visualizations**: Elevation, pace, heart-rate charts, and zone breakdowns.
-- **Training Metrics**: Aerobic/anaerobic training effect summaries.
-- **Multi-Sport**: Running, cycling, hiking, and other FIT-compatible workouts.
-- **Responsive UI**: Works on desktop and mobile browsers.
-
-## Configuration
-
-The server reads `garmr.json` by default:
+## Config Cheatsheet
 
 ```json
 {
   "db_path": "./data/garmr.db",
   "raw_store": "./data/raw_fit",
-  "http_addr": "127.0.0.1:8765",
+  "http_addr": "0.0.0.0:8765",
   "poll_ms": 0,
   "search_roots": ["/Volumes"],
   "garmin_dirs": ["/Volumes/GARMIN/GARMIN/Activity"],
   "use_cdn_tiles": false,
-  "auth_user": "",
-  "auth_pass": ""
+  "auth_user": "user",
+  "auth_pass": "password"
 }
 ```
 
-Key fields:
-- `db_path`: SQLite database file.
-- `raw_store`: Folder for original FIT uploads.
-- `http_addr`: HTTP bind address (set to `0.0.0.0:8765` inside Docker).
-- `poll_ms`: USB polling interval in milliseconds (0 disables polling).
-- `search_roots` / `garmin_dirs`: Candidate paths for attached Garmin storage.
-- `use_cdn_tiles`: `true` to load map tiles from a CDN, `false` to self-host.
-- `auth_user` / `auth_pass`: When both are non-empty, HTTP Basic Auth is enforced for every page/API (use HTTPS or a trusted reverse proxy).
+ - `db_path` / `raw_store`: where SQLite and uploaded FIT files live (mount `/app/data` in Docker to persist them).
+ - `http_addr`: `0.0.0.0:8765` for containers, `127.0.0.1:8765` for local dev.
+ - `poll_ms`: enable background USB scans when running on your host OS (`0` disables; USB scanning isn’t available inside Docker).
+- `search_roots` + `garmin_dirs`: paths to scan for devices.
+- `auth_user` / `auth_pass`: bootstrap account only; the UI handles password changes afterwards.
 
-Override the config path with `./garmrd -config ./my-config.json` or pass `-config` through Docker (`docker run garmr -config /path`).
+Run with a custom file via `./garmrd -config ./my-config.json` or `docker run … garmr -config /path`.
 
-**Enabling Basic Auth**
-1. Pick credentials and update `garmr.json`:
-   ```json
-   "auth_user": "coach",
-   "auth_pass": "supersecret"
-   ```
-2. Restart the server (rebuild the container if using Docker) so the new config is loaded.
-3. Visit the UI; the browser will prompt for username/password before anything loads. Credentials are validated with constant-time compares, so choose a strong password and prefer HTTPS when exposing the service publicly.
-
-## Local Development (Go)
-
-Prerequisites: Go 1.21+ and Git.
+## Local Development
 
 ```bash
-git clone https://github.com/yourusername/garmr.git
+git clone https://github.com/kullbachxyz/garmr.git
 cd garmr
-
-go build -trimpath -ldflags="-s -w" -o garmrd ./cmd/garmrd
+go build -o garmrd ./cmd/garmrd
 ./garmrd
 ```
 
-The multi-stage `Dockerfile` in the repo builds the same binary with Go 1.25.1:
+You’ll need Go 1.21+ and SQLite headers (the repo already vendors modernc.org/sqlite). To mirror production, the provided `Dockerfile` builds the binary with Go 1.25 and packages it in a slim Debian image:
 
 ```bash
 docker build -t garmr .
 docker run --rm -p 8765:8765 -v garmr_data:/app/data -v $PWD/garmr.json:/app/garmr.json:ro garmr
 ```
 
-## Usage
+## Everyday Use
 
-1. Start the server (locally or via Docker).
-2. Open `http://localhost:8765`.
-3. Import activities via USB scan or FIT upload and review charts, heart-rate zones, and training metrics.
-
-## Architecture & Tech Stack
-
-- **Backend**: Go + SQLite (migrations via Goose in `internal/store/migrations`).
-- **FIT Parsing**: [`github.com/tormoder/fit`](https://github.com/tormoder/fit).
-- **Frontend**: HTML templates with Chart.js visualizations and Leaflet + OSM tiles.
+1. Start the server (binary or Docker).
+2. Browse to `http://localhost:8765`.
+3. Import FIT files via USB scan or drag-and-drop uploads.
+4. Review distance, pace, heart-rate zones, elevation, and training-effect charts.

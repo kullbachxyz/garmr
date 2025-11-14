@@ -22,11 +22,31 @@
 <body>
   <header class="topbar">
     <nav class="nav">
-      <a id="logo" href="/">garmr</a>
-      <a href="/">Dashboard</a>
-      <a href="/activities">Activities</a>
-      <a href="/stats">Statistics</a>
-      <a href="/import">Import</a>
+      <div class="nav-links">
+        <a id="logo" href="/">garmr</a>
+        {{if .CurrentUser}}
+        <a href="/">Dashboard</a>
+        <a href="/activities">Activities</a>
+        <a href="/stats">Statistics</a>
+        <a href="/import">Import</a>
+        {{end}}
+      </div>
+      <div class="nav-auth">
+        {{if .CurrentUser}}
+          <details class="user-menu">
+            <summary class="nav-user" aria-label="Account menu">{{.CurrentUser.Username}}</summary>
+            <div class="user-menu-panel">
+              <a href="/account/details">Edit details</a>
+              <a href="/account/password">Change password</a>
+            </div>
+          </details>
+          <form method="POST" action="/logout" class="logout-form">
+            <button type="submit">Logout</button>
+          </form>
+        {{else}}
+          <a href="/login" class="login-link">Sign in</a>
+        {{end}}
+      </div>
     </nav>
   </header>
 
