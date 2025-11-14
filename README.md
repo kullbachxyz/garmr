@@ -18,6 +18,7 @@ A self-hosted fitness activity tracker for Garmin FIT files. Import, analyze, an
 
 - Go 1.21 or later
 - Git
+- Docker (optional, for containerized deploys)
 
 ### Building from Source
 
@@ -67,6 +68,35 @@ The application uses `garmr.json` by default:
 - `search_roots`: Root paths to search for Garmin devices
 - `garmin_dirs`: Subdirectories within Garmin devices containing activities
 - `use_cdn_tiles`: Use CDN for map tiles (true) or self-host (false)
+
+## Docker
+
+Build and run the containerized server:
+
+```bash
+docker build -t garmr .
+
+docker run --rm \
+  -p 8765:8765 \
+  -v garmr_data:/app/data \
+  -v $PWD/garmr.json:/app/garmr.json:ro \
+  garmr
+```
+
+Set `http_addr` to `0.0.0.0:8765` (or override via `-config`) so the UI is reachable outside the container. When using Docker Compose, mount `/app/data` to persist the SQLite database and raw FIT files:
+
+```yaml
+services:
+  garmr:
+    build: .
+    ports:
+      - "8765:8765"
+    volumes:
+      - garmr_data:/app/data
+      - ./garmr.json:/app/garmr.json:ro
+volumes:
+  garmr_data: {}
+```
 
 ## Usage
 

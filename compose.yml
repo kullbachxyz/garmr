@@ -1,0 +1,10 @@
+services:
+ garmr:
+   build: .
+   ports:
+     - "8765:8765"
+   volumes:
+     - garmr_data:/app/data
+     - ./garmr.json:/app/garmr.json:ro
+volumes:
+ garmr_data: {}

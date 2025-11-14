@@ -1,7 +1,7 @@
 {
   "db_path": "./data/garmr.db",
   "raw_store": "./data/raw_fit",
-  "http_addr": "127.0.0.1:8765",
+  "http_addr": "0.0.0.0:8765",
   "poll_ms": 0,
   "search_roots": ["/Volumes"],
   "garmin_dirs": ["/Volumes/GARMIN/GARMIN/Activity"],

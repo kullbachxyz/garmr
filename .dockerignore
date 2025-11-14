@@ -1,0 +1,9 @@
+.git
+.gitignore
+data
+garmrd
+*.db
+*.log
+*.tmp
+bin
+dist
