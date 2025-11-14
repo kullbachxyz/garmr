@@ -1,6 +1,5 @@
 _version history/
 .DS_Store
 garmr.db
-garmrd
 data/raw_fit/
 AGENTS.md
