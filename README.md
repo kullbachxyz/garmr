@@ -30,7 +30,9 @@ The server reads `garmr.json` by default:
   "poll_ms": 0,
   "search_roots": ["/Volumes"],
   "garmin_dirs": ["/Volumes/GARMIN/GARMIN/Activity"],
-  "use_cdn_tiles": false
+  "use_cdn_tiles": false,
+  "auth_user": "",
+  "auth_pass": ""
 }
 ```
 
@@ -41,8 +43,18 @@ Key fields:
 - `poll_ms`: USB polling interval in milliseconds (0 disables polling).
 - `search_roots` / `garmin_dirs`: Candidate paths for attached Garmin storage.
 - `use_cdn_tiles`: `true` to load map tiles from a CDN, `false` to self-host.
+- `auth_user` / `auth_pass`: When both are non-empty, HTTP Basic Auth is enforced for every page/API (use HTTPS or a trusted reverse proxy).
 
 Override the config path with `./garmrd -config ./my-config.json` or pass `-config` through Docker (`docker run garmr -config /path`).
+
+**Enabling Basic Auth**
+1. Pick credentials and update `garmr.json`:
+   ```json
+   "auth_user": "coach",
+   "auth_pass": "supersecret"
+   ```
+2. Restart the server (rebuild the container if using Docker) so the new config is loaded.
+3. Visit the UI; the browser will prompt for username/password before anything loads. Credentials are validated with constant-time compares, so choose a strong password and prefer HTTPS when exposing the service publicly.
 
 ## Local Development (Go)
 

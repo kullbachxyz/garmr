@@ -1,6 +1,7 @@
 package web
 
 import (
+	"crypto/subtle"
 	"database/sql"
 	"embed"
 	"fmt"
@@ -145,5 +146,24 @@ func New(c cfg.Config, db *store.DB, im *importer.Importer) *http.Server {
 	mux.HandleFunc("/import", s.handleImportPage)
 	mux.HandleFunc("/api/upload", s.handleFileUpload) // POST
 
-	return &http.Server{Addr: c.HTTPAddr, Handler: mux}
+	handler := http.Handler(mux)
+	if strings.TrimSpace(c.AuthUser) != "" && strings.TrimSpace(c.AuthPass) != "" {
+		handler = withBasicAuth(handler, c.AuthUser, c.AuthPass)
+	}
+
+	return &http.Server{Addr: c.HTTPAddr, Handler: handler}
+}
+
+func withBasicAuth(next http.Handler, username, password string) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		u, p, ok := r.BasicAuth()
+		if !ok ||
+			subtle.ConstantTimeCompare([]byte(u), []byte(username)) != 1 ||
+			subtle.ConstantTimeCompare([]byte(p), []byte(password)) != 1 {
+			w.Header().Set("WWW-Authenticate", `Basic realm="garmr"`)
+			http.Error(w, "unauthorized", http.StatusUnauthorized)
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
 }

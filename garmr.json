@@ -5,5 +5,7 @@
   "poll_ms": 0,
   "search_roots": ["/Volumes"],
   "garmin_dirs": ["/Volumes/GARMIN/GARMIN/Activity"],
-  "use_cdn_tiles": false
+  "use_cdn_tiles": false,
+  "auth_user": "user",
+  "auth_pass": "password"
 }
