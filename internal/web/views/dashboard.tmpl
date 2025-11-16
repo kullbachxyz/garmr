@@ -1,7 +1,7 @@
 {{define "content"}}
 <h1>Dashboard</h1>
-<form method="GET" style="margin-bottom:12px;">
-  <label for="sport" style="margin-right:8px; color:#6b7280;">Filter stats by sport:</label>
+<form method="GET" class="stats-filter">
+  <label for="sport">Filter stats by sport:</label>
   <select id="sport" name="sport" onchange="this.form.submit()">
     <option value="" {{if eq .CurrentSport ""}}selected{{end}}>All</option>
     {{range .Sports}}

@@ -86,36 +86,30 @@ a{ color:var(--link); }
   background:var(--surface);
 }
 .logout-form{ margin:0; }
-.logout-form button{
-  border:1px solid var(--btn-border);
-  background:var(--btn-bg);
-  border-radius:6px;
-  padding:6px 12px;
-  cursor:pointer;
-}
-.logout-form button:hover{ background:var(--btn-hover); }
 .login-link{ font-weight:600; }
 
-/* keep leaflet under the topbar */
-#leafmap, .leaflet-container, .leaflet-pane { z-index:0; }
-
-/* push the Import button (and following status span) to the right */
-#importBtn{ margin-left:auto; }
-
-/* small, muted status text */
-#importStatus{ color:var(--muted); }
-
-/* optional: a tiny button style so it looks decent */
-button#importBtn{
-  padding:6px 10px;
+.btn{
   border:1px solid var(--btn-border);
   border-radius:6px;
   background:var(--btn-bg);
   color:var(--fg);
+  font-size:14px;
+  font-weight:600;
+  padding:6px 12px;
   cursor:pointer;
+  transition:background .15s ease,color .15s ease;
 }
-button#importBtn:hover{ background:var(--btn-hover); }
-button#importBtn:disabled{ opacity:.6; cursor:not-allowed; }
+.btn:hover{ background:var(--btn-hover); }
+.btn:disabled{
+  opacity:.6;
+  cursor:not-allowed;
+}
+
+/* keep leaflet under the topbar */
+#leafmap, .leaflet-container, .leaflet-pane { z-index:0; }
+
+/* small, muted status text */
+#importStatus{ color:var(--muted); }
 
 /* --- Auth card ----------------------------------------------------------- */
 .auth-card{
@@ -146,16 +140,9 @@ button#importBtn:disabled{ opacity:.6; cursor:not-allowed; }
   font-size:15px;
 }
 .btn-primary{
-  border:none;
-  border-radius:6px;
-  padding:10px 14px;
   font-size:15px;
-  font-weight:600;
-  background:#111827;
-  color:#fff;
-  cursor:pointer;
+  padding:8px 14px;
 }
-.btn-primary:hover{ background:#0f172a; }
 .alert{
   border-radius:6px;
   padding:10px 12px;
@@ -193,21 +180,69 @@ button#importBtn:disabled{ opacity:.6; cursor:not-allowed; }
   display:inline;
 }
 .btn-danger{
-  border:1px solid #fca5a5;
-  background:#fee2e2;
-  color:#b91c1c;
-  border-radius:6px;
-  padding:4px 10px;
   font-size:13px;
-  cursor:pointer;
-}
-.btn-danger:hover{
-  background:#fecaca;
+  padding:6px 12px;
 }
 .btn-danger:focus{
-  outline:2px solid rgba(185,28,28,0.4);
+  outline:2px solid rgba(55,65,81,0.35);
   outline-offset:1px;
 }
+
+.stats-filter{
+  margin:0 0 12px 0;
+  display:flex;
+  align-items:center;
+  gap:8px;
+  color:var(--muted);
+}
+.stats-filter select{
+  border:1px solid var(--btn-border);
+  border-radius:6px;
+  padding:6px 12px;
+  font-size:14px;
+  font-weight:600;
+  background:var(--btn-bg);
+  color:var(--fg);
+  cursor:pointer;
+}
+.tabs{
+  display:flex;
+  gap:8px;
+  align-items:center;
+  margin-bottom:10px;
+}
+.tab{
+  border-radius:6px;
+}
+.tab.active{
+  background:var(--btn-hover);
+}
+.tabs-spacer{ flex:1; }
+.tab-controls{
+  display:flex;
+  gap:8px;
+  align-items:center;
+  font-size:14px;
+  color:var(--fg);
+}
+.tab-controls select{
+  margin-left:6px;
+  border:1px solid var(--btn-border);
+  border-radius:6px;
+  padding:6px 12px;
+  font-size:14px;
+  font-weight:600;
+  background:var(--btn-bg);
+  color:var(--fg);
+  cursor:pointer;
+}
+#controls-year{ display:none; }
+.chart-wrap{
+  position:relative;
+  height:320px;
+  width:100%;
+}
+#chart-year{ display:none; }
 
 .pagination{
   margin-top:12px;

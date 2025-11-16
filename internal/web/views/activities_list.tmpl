@@ -1,8 +1,8 @@
 {{define "content"}}
 <h1>Activities</h1>
 
-<form method="GET" style="margin: 0 0 12px 0;">
-  <label for="sport" style="margin-right:8px; color:#6b7280;">Filter by sport:</label>
+<form method="GET" class="stats-filter">
+  <label for="sport">Filter by sport:</label>
   <select id="sport" name="sport" onchange="this.form.submit()">
     <option value="" {{if eq .CurrentSport ""}}selected{{end}}>All</option>
     {{range .Sports}}
@@ -24,7 +24,7 @@
         <input type="hidden" name="id" value="{{.ID}}">
         {{if $.CurrentSport}}<input type="hidden" name="sport" value="{{$.CurrentSport}}">{{end}}
         <input type="hidden" name="page" value="{{$.Page}}">
-        <button type="submit" class="btn-danger">Delete</button>
+        <button type="submit" class="btn btn-danger">Delete</button>
       </form>
     </td>
   </tr>

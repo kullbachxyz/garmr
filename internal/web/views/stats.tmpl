@@ -2,8 +2,8 @@
 <h1>Statistics</h1>
 
 <!-- Sport Filter -->
-<form method="GET" style="margin: 0 0 12px 0;">
-  <label for="sport" style="margin-right:8px; color:#6b7280;">Filter by sport:</label>
+<form method="GET" class="stats-filter">
+  <label for="sport">Filter by sport:</label>
   <select id="sport" name="sport" onchange="this.form.submit()">
     <option value="" {{if eq .CurrentSport ""}}selected{{end}}>All</option>
     {{range .Sports}}
@@ -13,24 +13,22 @@
 </form>
 
   <!-- Tabs -->
-  <div class="tabs" style="display:flex; gap:8px; margin-bottom:10px;">
-    <button id="tab-month" class="tab active" type="button"
-      style="padding:6px 10px; border-radius:8px; border:1px solid var(--border); background:var(--bg);">
+  <div class="tabs">
+    <button id="tab-month" class="btn tab active" type="button">
       Month
     </button>
-    <button id="tab-year" class="tab" type="button"
-      style="padding:6px 10px; border-radius:8px; border:1px solid var(--border); background:transparent;">
+    <button id="tab-year" class="btn tab" type="button">
       Year
     </button>
-    <div style="flex:1"></div>
+    <div class="tabs-spacer"></div>
 
     <!-- Period selects -->
-    <div id="controls-month" style="display:flex; gap:8px; align-items:center;">
+    <div id="controls-month" class="tab-controls">
       <label>Month:
         <select id="select-month"></select>
       </label>
     </div>
-    <div id="controls-year" style="display:none; gap:8px; align-items:center;">
+    <div id="controls-year" class="tab-controls">
       <label>Year:
         <select id="select-year"></select>
       </label>
@@ -38,10 +36,10 @@
   </div>
 
   <!-- Charts -->
-  <div id="chart-month" style="position:relative; height:320px; width:100%; display:block;">
+  <div id="chart-month" class="chart-wrap">
     <canvas id="chartMonthCanvas"></canvas>
   </div>
-  <div id="chart-year" style="position:relative; height:320px; width:100%; display:none;">
+  <div id="chart-year" class="chart-wrap">
     <canvas id="chartYearCanvas"></canvas>
   </div>
 </div>
