@@ -24,4 +24,28 @@
   <tr><td colspan="4">No activities yet.</td></tr>
   {{end}}
 </table>
+
+{{if gt .TotalPages 1}}
+<div class="pagination">
+  {{if .HasPrev}}
+    <a href="/activities?{{.PaginationQS}}page={{.PrevPage}}">&laquo; Prev</a>
+  {{else}}
+    <span class="disabled">&laquo; Prev</span>
+  {{end}}
+
+  {{range .PageNumbers}}
+    {{if eq $.Page .}}
+      <span class="current">{{.}}</span>
+    {{else}}
+      <a href="/activities?{{$.PaginationQS}}page={{.}}">{{.}}</a>
+    {{end}}
+  {{end}}
+
+  {{if .HasNext}}
+    <a href="/activities?{{.PaginationQS}}page={{.NextPage}}">Next &raquo;</a>
+  {{else}}
+    <span class="disabled">Next &raquo;</span>
+  {{end}}
+</div>
+{{end}}
 {{end}}

@@ -7,6 +7,7 @@ import (
 	"log"
 	"math"
 	"net/http"
+	"net/url"
 	"sort"
 	"strconv"
 	"strings"
@@ -50,6 +51,14 @@ type activitiesVM struct {
 	Sports       []string
 	CurrentSport string
 	CurrentUser  *userView
+	Page         int
+	TotalPages   int
+	PageNumbers  []int
+	HasPrev      bool
+	HasNext      bool
+	PrevPage     int
+	NextPage     int
+	PaginationQS string
 }
 
 type activityDetailVM struct {
@@ -61,6 +70,11 @@ type activityDetailVM struct {
 	AerobicTE, AnaerobicTE          sql.NullFloat64
 	CurrentUser                     *userView
 }
+
+const (
+	activitiesPageSize  = 25
+	paginationWindowLen = 7
+)
 
 func (s *Server) handleDashboard(w http.ResponseWriter, r *http.Request) {
 	// ----- read filter from URL once -----
@@ -179,6 +193,37 @@ func (s *Server) handleDashboard(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+func buildPageNumbers(current, total int) []int {
+	if total <= 0 || current <= 0 {
+		return nil
+	}
+
+	window := paginationWindowLen
+	if total <= window {
+		pages := make([]int, 0, total)
+		for i := 1; i <= total; i++ {
+			pages = append(pages, i)
+		}
+		return pages
+	}
+
+	start := current - window/2
+	if start < 1 {
+		start = 1
+	}
+	end := start + window - 1
+	if end > total {
+		end = total
+		start = end - window + 1
+	}
+
+	pages := make([]int, 0, window)
+	for i := start; i <= end; i++ {
+		pages = append(pages, i)
+	}
+	return pages
+}
+
 // tiny iterator helper (optional)
 func iterRows(rows *sql.Rows) <-chan *sql.Rows {
 	ch := make(chan *sql.Rows)
@@ -233,6 +278,11 @@ func (s *Server) periodStatsFiltered(from, to time.Time, sport string) (periodSt
 
 func (s *Server) handleActivities(w http.ResponseWriter, r *http.Request) {
 	sport := strings.TrimSpace(r.URL.Query().Get("sport")) // "" => All
+	pageStr := strings.TrimSpace(r.URL.Query().Get("page"))
+	page := 1
+	if p, err := strconv.Atoi(pageStr); err == nil && p > 0 {
+		page = p
+	}
 
 	// Build sports list from ALL activities (stable dropdown)
 	sports := make([]string, 0, 8)
@@ -265,6 +315,29 @@ func (s *Server) handleActivities(w http.ResponseWriter, r *http.Request) {
 	}
 	sort.Strings(sports)
 
+	// Count total items for pagination
+	var total int
+	if sport == "" {
+		err = s.db.QueryRow(`SELECT COUNT(*) FROM activities`).Scan(&total)
+	} else {
+		err = s.db.QueryRow(`SELECT COUNT(*) FROM activities WHERE sport = ?`, sport).Scan(&total)
+	}
+	if err != nil {
+		http.Error(w, err.Error(), 500)
+		return
+	}
+
+	totalPages := 0
+	if total > 0 {
+		totalPages = (total + activitiesPageSize - 1) / activitiesPageSize
+		if page > totalPages {
+			page = totalPages
+		}
+	} else {
+		page = 1
+	}
+	offset := (page - 1) * activitiesPageSize
+
 	// Query items (optionally filtered by sport)
 	var rows *sql.Rows
 	if sport == "" {
@@ -272,14 +345,14 @@ func (s *Server) handleActivities(w http.ResponseWriter, r *http.Request) {
             SELECT id, start_time_utc, sport, distance_m, duration_s
             FROM activities
             ORDER BY start_time_utc DESC
-            LIMIT 200`)
+            LIMIT ? OFFSET ?`, activitiesPageSize, offset)
 	} else {
 		rows, err = s.db.Query(`
             SELECT id, start_time_utc, sport, distance_m, duration_s
             FROM activities
             WHERE sport = ?
             ORDER BY start_time_utc DESC
-            LIMIT 200`, sport)
+            LIMIT ? OFFSET ?`, sport, activitiesPageSize, offset)
 	}
 	if err != nil {
 		http.Error(w, err.Error(), 500)
@@ -300,11 +373,34 @@ func (s *Server) handleActivities(w http.ResponseWriter, r *http.Request) {
 		items = append(items, it)
 	}
 
+	params := url.Values{}
+	if sport != "" {
+		params.Set("sport", sport)
+	}
+	qs := params.Encode()
+	if qs != "" {
+		qs += "&"
+	}
+	pageNumbers := buildPageNumbers(page, totalPages)
+	prevPage := 1
+	if page > 1 {
+		prevPage = page - 1
+	}
+	nextPage := page + 1
+
 	vm := activitiesVM{
 		Items:        items,
 		Sports:       sports, // full unfiltered list
 		CurrentSport: sport,  // selected value
 		CurrentUser:  s.currentUser(r),
+		Page:         page,
+		TotalPages:   totalPages,
+		PageNumbers:  pageNumbers,
+		HasPrev:      page > 1,
+		HasNext:      totalPages > 0 && page < totalPages,
+		PrevPage:     prevPage,
+		NextPage:     nextPage,
+		PaginationQS: qs,
 	}
 	if err := s.tplList.ExecuteTemplate(w, "layout", vm); err != nil {
 		http.Error(w, err.Error(), 500)
