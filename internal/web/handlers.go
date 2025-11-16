@@ -224,6 +224,25 @@ func buildPageNumbers(current, total int) []int {
 	return pages
 }
 
+func buildActivitiesRedirect(sport, page string) string {
+	params := url.Values{}
+	sport = strings.TrimSpace(sport)
+	if sport != "" {
+		params.Set("sport", sport)
+	}
+	page = strings.TrimSpace(page)
+	if page != "" && page != "1" {
+		if _, err := strconv.Atoi(page); err == nil {
+			params.Set("page", page)
+		}
+	}
+	target := "/activities"
+	if qs := params.Encode(); qs != "" {
+		target = target + "?" + qs
+	}
+	return target
+}
+
 // tiny iterator helper (optional)
 func iterRows(rows *sql.Rows) <-chan *sql.Rows {
 	ch := make(chan *sql.Rows)
@@ -432,6 +451,35 @@ func (s *Server) handleActivityDetail(w http.ResponseWriter, r *http.Request) {
 
 	vm.CurrentUser = s.currentUser(r)
 	_ = s.tplDetail.ExecuteTemplate(w, "layout", vm)
+}
+
+func (s *Server) handleActivityDelete(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "invalid form data", http.StatusBadRequest)
+		return
+	}
+	idStr := strings.TrimSpace(r.FormValue("id"))
+	id, err := strconv.ParseInt(idStr, 10, 64)
+	if err != nil || id <= 0 {
+		http.Error(w, "invalid activity id", http.StatusBadRequest)
+		return
+	}
+
+	if err := s.store.DeleteActivity(id); err != nil {
+		log.Printf("delete activity %d: %v", id, err)
+		http.Error(w, "failed to delete activity", http.StatusInternalServerError)
+		return
+	}
+
+	redirect := buildActivitiesRedirect(r.FormValue("sport"), r.FormValue("page"))
+	if ret := strings.TrimSpace(r.FormValue("return_to")); ret != "" && strings.HasPrefix(ret, "/") {
+		redirect = ret
+	}
+	http.Redirect(w, r, redirect, http.StatusSeeOther)
 }
 
 func (s *Server) handleActivityGeoJSON(w http.ResponseWriter, r *http.Request) {

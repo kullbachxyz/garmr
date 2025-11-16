@@ -184,6 +184,31 @@ button#importBtn:disabled{ opacity:.6; cursor:not-allowed; }
 }
 .kv span{ color:var(--muted); }
 
+.activity-actions{
+  text-align:right;
+  white-space:nowrap;
+}
+.activity-actions form{
+  margin:0;
+  display:inline;
+}
+.btn-danger{
+  border:1px solid #fca5a5;
+  background:#fee2e2;
+  color:#b91c1c;
+  border-radius:6px;
+  padding:4px 10px;
+  font-size:13px;
+  cursor:pointer;
+}
+.btn-danger:hover{
+  background:#fecaca;
+}
+.btn-danger:focus{
+  outline:2px solid rgba(185,28,28,0.4);
+  outline-offset:1px;
+}
+
 .pagination{
   margin-top:12px;
   display:flex;

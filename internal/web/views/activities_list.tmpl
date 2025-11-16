@@ -12,16 +12,24 @@
 </form>
 
 <table class="tbl">
-  <tr><th>Start</th><th>Sport</th><th>Distance</th><th>Duration</th></tr>
+  <tr><th>Start</th><th>Sport</th><th>Distance</th><th>Duration</th><th>Actions</th></tr>
   {{range .Items}}
   <tr>
     <td><a href="/activity/{{.ID}}">{{trimUTC .Start}}</a></td>
     <td>{{.Sport}}</td>
     <td>{{printf "%.2f km" .DistKm}}</td>
     <td>{{fmtDuration .DurS}}</td>
+    <td class="activity-actions">
+      <form method="POST" action="/activity/delete" onsubmit="return confirm('Delete this activity?');">
+        <input type="hidden" name="id" value="{{.ID}}">
+        {{if $.CurrentSport}}<input type="hidden" name="sport" value="{{$.CurrentSport}}">{{end}}
+        <input type="hidden" name="page" value="{{$.Page}}">
+        <button type="submit" class="btn-danger">Delete</button>
+      </form>
+    </td>
   </tr>
   {{else}}
-  <tr><td colspan="4">No activities yet.</td></tr>
+  <tr><td colspan="5">No activities yet.</td></tr>
   {{end}}
 </table>
 

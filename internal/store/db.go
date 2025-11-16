@@ -8,9 +8,9 @@ import (
 	"path/filepath"
 	"time"
 
+	"garmr/internal/fitx"
 	"github.com/pressly/goose/v3"
 	_ "modernc.org/sqlite"
-	"garmr/internal/fitx"
 )
 
 //go:embed migrations/*.sql
@@ -36,17 +36,17 @@ type Activity struct {
 	DeviceModel  string
 	RawPath      string
 	// Training effects (Garmin specific)
-	AerobicTE    sql.NullFloat64 // Aerobic Training Effect (0.0-5.0)
-	AnaerobicTE  sql.NullFloat64 // Anaerobic Training Effect (0.0-5.0)
+	AerobicTE   sql.NullFloat64 // Aerobic Training Effect (0.0-5.0)
+	AnaerobicTE sql.NullFloat64 // Anaerobic Training Effect (0.0-5.0)
 }
 
 type Record struct {
-	TOffsetS           int
-	Lat, Lon, ElevM    sql.NullFloat64
-	HR, Cad            sql.NullInt64
-	TempC              sql.NullFloat64
-	PowerW             sql.NullInt64
-	SpeedMPS           sql.NullFloat64
+	TOffsetS        int
+	Lat, Lon, ElevM sql.NullFloat64
+	HR, Cad         sql.NullInt64
+	TempC           sql.NullFloat64
+	PowerW          sql.NullInt64
+	SpeedMPS        sql.NullFloat64
 }
 
 type Lap struct {
@@ -75,8 +75,13 @@ func Open(path string) (*DB, error) {
 
 func (db *DB) WithTx(fn func(*sql.Tx) error) error {
 	tx, err := db.Begin()
-	if err != nil { return err }
-	if err := fn(tx); err != nil { _ = tx.Rollback(); return err }
+	if err != nil {
+		return err
+	}
+	if err := fn(tx); err != nil {
+		_ = tx.Rollback()
+		return err
+	}
 	return tx.Commit()
 }
 
@@ -102,36 +107,62 @@ func (db *DB) InsertActivity(tx *sql.Tx, a fitx.Activity, rawPath, hash string) 
 		fit_uid,start_time_utc,sport,sub_sport,duration_s,distance_m,avg_hr,max_hr,avg_speed_mps,calories,ascent_m,descent_m,device_vendor,device_model,raw_path,file_hash,aerobic_te,anaerobic_te,created_at
 	) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,datetime('now'))`,
 		a.FitUID, a.StartTimeUTC, a.Sport, a.SubSport, a.DurationS, a.DistanceM, a.AvgHR, a.MaxHR, a.AvgSpeedMPS, a.Calories, a.AscentM, a.DescentM, a.DeviceVendor, a.DeviceModel, rawPath, hash, a.AerobicTE, a.AnaerobicTE)
-	if err != nil { return 0, err }
+	if err != nil {
+		return 0, err
+	}
 	return res.LastInsertId()
 }
 
 func (db *DB) InsertRecords(tx *sql.Tx, id int64, recs []fitx.Record) error {
 	stmt, err := tx.Prepare(`INSERT INTO records(activity_id,t_offset_s,lat_deg,lon_deg,elev_m,hr,cad,temp_c,power_w,speed_mps) VALUES(?,?,?,?,?,?,?,?,?,?)`)
-	if err != nil { return err }
+	if err != nil {
+		return err
+	}
 	defer stmt.Close()
 	for _, r := range recs {
 		var lat, lon, elev, temp, spd interface{}
 		var hr, cad, pwr interface{}
-		if r.Lat != nil { lat = *r.Lat }
-		if r.Lon != nil { lon = *r.Lon }
-		if r.ElevM != nil { elev = *r.ElevM }
-		if r.TempC != nil { temp = *r.TempC }
-		if r.SpeedMPS != nil { spd = *r.SpeedMPS }
-		if r.HR != nil { hr = *r.HR }
-		if r.Cad != nil { cad = *r.Cad }
-		if r.PowerW != nil { pwr = *r.PowerW }
-		if _, err := stmt.Exec(id, r.TOffsetS, lat, lon, elev, hr, cad, temp, pwr, spd); err != nil { return err }
+		if r.Lat != nil {
+			lat = *r.Lat
+		}
+		if r.Lon != nil {
+			lon = *r.Lon
+		}
+		if r.ElevM != nil {
+			elev = *r.ElevM
+		}
+		if r.TempC != nil {
+			temp = *r.TempC
+		}
+		if r.SpeedMPS != nil {
+			spd = *r.SpeedMPS
+		}
+		if r.HR != nil {
+			hr = *r.HR
+		}
+		if r.Cad != nil {
+			cad = *r.Cad
+		}
+		if r.PowerW != nil {
+			pwr = *r.PowerW
+		}
+		if _, err := stmt.Exec(id, r.TOffsetS, lat, lon, elev, hr, cad, temp, pwr, spd); err != nil {
+			return err
+		}
 	}
 	return nil
 }
 
 func (db *DB) InsertLaps(tx *sql.Tx, id int64, laps []fitx.Lap) error {
 	stmt, err := tx.Prepare(`INSERT INTO laps(activity_id,lap_index,start_offset_s,duration_s,distance_m,avg_hr,max_hr,avg_speed_mps) VALUES(?,?,?,?,?,?,?,?)`)
-	if err != nil { return err }
+	if err != nil {
+		return err
+	}
 	defer stmt.Close()
 	for _, l := range laps {
-		if _, err := stmt.Exec(id, l.Index, l.StartOff, l.DurS, l.DistM, l.AvgHR, l.MaxHR, l.AvgSpd); err != nil { return err }
+		if _, err := stmt.Exec(id, l.Index, l.StartOff, l.DurS, l.DistM, l.AvgHR, l.MaxHR, l.AvgSpd); err != nil {
+			return err
+		}
 	}
 	return nil
 }
@@ -147,11 +178,16 @@ func (db *DB) UpsertDailyAgg(tx *sql.Tx, start time.Time, a fitx.Activity) error
 		total_calories = total_calories + excluded.total_calories,
 		runs = runs + excluded.runs,
 		rides = rides + excluded.rides
-	`, day, a.DistanceM, a.DurationS, int(a.AscentM), a.Calories, boolToInt(a.Sport=="running"), boolToInt(a.Sport=="cycling"))
+	`, day, a.DistanceM, a.DurationS, int(a.AscentM), a.Calories, boolToInt(a.Sport == "running"), boolToInt(a.Sport == "cycling"))
 	return err
 }
 
-func boolToInt(b bool) int { if b { return 1 }; return 0 }
+func boolToInt(b bool) int {
+	if b {
+		return 1
+	}
+	return 0
+}
 
 func (db *DB) InsertHRZones(tx *sql.Tx, activityID int64, zones []HRZone) error {
 	stmt, err := tx.Prepare(`INSERT INTO hr_zones(activity_id, zone, time_seconds) VALUES(?, ?, ?)`)
@@ -277,4 +313,9 @@ func (db *DB) CalculateHRZonesForActivity(activityID int64, maxHR int) error {
 		}
 		return nil
 	})
+}
+
+func (db *DB) DeleteActivity(id int64) error {
+	_, err := db.Exec(`DELETE FROM activities WHERE id = ?`, id)
+	return err
 }

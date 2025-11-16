@@ -1,5 +1,12 @@
 {{define "content"}}
-<h1 style="margin-bottom:10px;">Activity</h1>
+<div style="display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:10px;">
+  <h1 style="margin:0;">Activity</h1>
+  <form method="POST" action="/activity/delete" onsubmit="return confirm('Delete this activity?');">
+    <input type="hidden" name="id" value="{{.ID}}">
+    <input type="hidden" name="return_to" value="/activities">
+    <button type="submit" class="btn-danger">Delete</button>
+  </form>
+</div>
 
 <!-- HERO METRICS -->
 <div class="metrics">
