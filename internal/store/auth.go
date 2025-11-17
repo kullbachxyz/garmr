@@ -17,6 +17,7 @@ type AuthUser struct {
 	Username     string
 	PasswordHash string
 	LastLoginAt  sql.NullString
+	Theme        string
 }
 
 type Session struct {
@@ -47,8 +48,8 @@ func (db *DB) CreateUser(username, password string) (int64, error) {
 	if err != nil {
 		return 0, err
 	}
-	res, err := db.Exec(`INSERT INTO users(username,password_hash,created_at,updated_at) VALUES(?,?,datetime('now'),datetime('now'))`,
-		username, string(hash))
+	res, err := db.Exec(`INSERT INTO users(username,password_hash,theme,created_at,updated_at) VALUES(?,?,?,datetime('now'),datetime('now'))`,
+		username, string(hash), "system")
 	if err != nil {
 		return 0, err
 	}
@@ -58,8 +59,8 @@ func (db *DB) CreateUser(username, password string) (int64, error) {
 
 func (db *DB) GetUserByUsername(username string) (*AuthUser, error) {
 	var u AuthUser
-	err := db.QueryRow(`SELECT id, username, password_hash, last_login_at FROM users WHERE username=?`, username).
-		Scan(&u.ID, &u.Username, &u.PasswordHash, &u.LastLoginAt)
+	err := db.QueryRow(`SELECT id, username, password_hash, last_login_at, theme FROM users WHERE username=?`, username).
+		Scan(&u.ID, &u.Username, &u.PasswordHash, &u.LastLoginAt, &u.Theme)
 	if err != nil {
 		return nil, err
 	}
@@ -68,8 +69,8 @@ func (db *DB) GetUserByUsername(username string) (*AuthUser, error) {
 
 func (db *DB) GetUserByID(id int64) (*AuthUser, error) {
 	var u AuthUser
-	err := db.QueryRow(`SELECT id, username, password_hash, last_login_at FROM users WHERE id=?`, id).
-		Scan(&u.ID, &u.Username, &u.PasswordHash, &u.LastLoginAt)
+	err := db.QueryRow(`SELECT id, username, password_hash, last_login_at, theme FROM users WHERE id=?`, id).
+		Scan(&u.ID, &u.Username, &u.PasswordHash, &u.LastLoginAt, &u.Theme)
 	if err != nil {
 		return nil, err
 	}
@@ -116,6 +117,16 @@ func (db *DB) EnsureInitialUser(username, password string) error {
 	}
 	_, err = db.CreateUser(username, password)
 	return err
+}
+
+func (db *DB) UpdateTheme(userID int64, theme string) error {
+	switch strings.ToLower(strings.TrimSpace(theme)) {
+	case "light", "dark", "system":
+		_, err := db.Exec(`UPDATE users SET theme=?, updated_at=datetime('now') WHERE id=?`, strings.ToLower(theme), userID)
+		return err
+	default:
+		return errors.New("invalid theme")
+	}
 }
 
 func generateSessionID() (string, error) {

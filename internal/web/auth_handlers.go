@@ -16,6 +16,7 @@ type loginView struct {
 
 type accountDetailsView struct {
 	CurrentUser *userView
+	Theme       string
 	Error       string
 	Success     string
 }
@@ -103,33 +104,53 @@ func (s *Server) handleAccountDetails(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	data := accountDetailsView{CurrentUser: user}
+	theme := user.Theme
+	if theme == "" {
+		theme = "system"
+	}
+	data := accountDetailsView{CurrentUser: user, Theme: theme}
 	if r.Method == http.MethodPost {
 		if err := r.ParseForm(); err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
-		newUsername := strings.TrimSpace(r.FormValue("new_username"))
-		current := r.FormValue("current_password")
-		if newUsername == "" {
-			data.Error = "Username is required"
-		} else if current == "" {
-			data.Error = "Current password is required"
-		} else {
-			stored, err := s.store.GetUserByID(user.ID)
-			if err != nil {
-				http.Error(w, err.Error(), http.StatusInternalServerError)
-				return
+		intent := r.FormValue("intent")
+		switch intent {
+		case "theme":
+			theme := strings.ToLower(strings.TrimSpace(r.FormValue("theme")))
+			if theme == "" {
+				theme = "system"
 			}
-			if bcrypt.CompareHashAndPassword([]byte(stored.PasswordHash), []byte(current)) != nil {
-				data.Error = "Current password is incorrect"
-			} else if newUsername == stored.Username {
-				data.Error = "Pick a different username"
-			} else if err := s.store.UpdateUsername(user.ID, newUsername); err != nil {
+			if err := s.store.UpdateTheme(user.ID, theme); err != nil {
 				data.Error = err.Error()
 			} else {
-				user.Username = newUsername
-				data.Success = "Username updated"
+				user.Theme = theme
+				data.Theme = theme
+				data.Success = "Theme preference saved"
+			}
+		default:
+			newUsername := strings.TrimSpace(r.FormValue("new_username"))
+			current := r.FormValue("current_password")
+			if newUsername == "" {
+				data.Error = "Username is required"
+			} else if current == "" {
+				data.Error = "Current password is required"
+			} else {
+				stored, err := s.store.GetUserByID(user.ID)
+				if err != nil {
+					http.Error(w, err.Error(), http.StatusInternalServerError)
+					return
+				}
+				if bcrypt.CompareHashAndPassword([]byte(stored.PasswordHash), []byte(current)) != nil {
+					data.Error = "Current password is incorrect"
+				} else if newUsername == stored.Username {
+					data.Error = "Pick a different username"
+				} else if err := s.store.UpdateUsername(user.ID, newUsername); err != nil {
+					data.Error = err.Error()
+				} else {
+					user.Username = newUsername
+					data.Success = "Username updated"
+				}
 			}
 		}
 	}

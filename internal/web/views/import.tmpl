@@ -8,10 +8,9 @@
 
   <form id="uploadForm" enctype="multipart/form-data" style="margin: 12px 0;">
     <div style="margin-bottom: 12px;">
-      <input type="file" id="fitFiles" name="files" multiple accept=".fit"
-             style="padding: 8px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg);">
+      <input type="file" id="fitFiles" name="files" multiple accept=".fit">
     </div>
-    <button type="submit" id="uploadBtn" class="btn">
+    <button type="submit" id="uploadBtn" class="btn btn-primary">
       Upload & Import
     </button>
   </form>
@@ -19,7 +18,7 @@
   <div id="uploadStatus" style="margin-top: 12px; color: var(--muted);"></div>
   <div id="uploadProgress" style="margin-top: 8px; display: none;">
     <div style="background: var(--border); height: 4px; border-radius: 2px; overflow: hidden;">
-      <div id="progressBar" style="background: #2563eb; height: 100%; width: 0%; transition: width 0.3s ease;"></div>
+      <div id="progressBar" style="background: var(--accent); height: 100%; width: 0%; transition: width 0.3s ease;"></div>
     </div>
   </div>
 </div>
@@ -29,7 +28,7 @@
   <div class="card-head">USB/Device Import</div>
   <p style="color: var(--muted); margin: 8px 0;">Scan for connected Garmin devices and import activities directly.</p>
 
-  <button id="importBtn" class="btn" style="margin: 12px 0;">
+  <button id="importBtn" class="btn btn-primary" style="margin: 12px 0;">
     Scan & Import from USB
   </button>
 

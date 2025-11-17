@@ -34,6 +34,7 @@ var userCtxKey ctxKey = "user"
 type userView struct {
 	ID       int64
 	Username string
+	Theme    string
 }
 
 type Server struct {
@@ -67,6 +68,13 @@ func New(c cfg.Config, db *store.DB, im *importer.Importer) *http.Server {
 	}
 
 	// helpers used by templates
+	themeValue := func(u *userView) string {
+		if u == nil || u.Theme == "" {
+			return "system"
+		}
+		return u.Theme
+	}
+
 	toFloat := func(v any) float64 {
 		switch x := v.(type) {
 		case int:
@@ -138,6 +146,8 @@ func New(c cfg.Config, db *store.DB, im *importer.Importer) *http.Server {
 			sec := int(p) % 60
 			return fmt.Sprintf("%d:%02d /km", min, sec)
 		},
+
+		"themeValue": themeValue,
 	}
 
 	// Parse base layout, then clone per page to avoid "content" conflicts
@@ -197,7 +207,7 @@ func (s *Server) withSession(next http.Handler) http.Handler {
 			if serr == nil {
 				user, uerr := s.store.GetUserByID(session.UserID)
 				if uerr == nil {
-					ctx = context.WithValue(ctx, userCtxKey, &userView{ID: user.ID, Username: user.Username})
+					ctx = context.WithValue(ctx, userCtxKey, &userView{ID: user.ID, Username: user.Username, Theme: user.Theme})
 				} else {
 					_ = s.store.DeleteSession(cookie.Value)
 					log.Printf("auth: clearing cookie, user lookup failed: %v", uerr)
@@ -259,7 +269,7 @@ func (s *Server) ensureUserFromCookie(w http.ResponseWriter, r *http.Request) (*
 		s.clearSessionCookie(w, r)
 		return nil, r
 	}
-	uv := &userView{ID: user.ID, Username: user.Username}
+	uv := &userView{ID: user.ID, Username: user.Username, Theme: user.Theme}
 	ctx := context.WithValue(r.Context(), userCtxKey, uv)
 	return uv, r.WithContext(ctx)
 }

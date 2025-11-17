@@ -9,11 +9,21 @@
   --border:#eee;
   --surface:#f5f5f5;
 
-  --btn-bg:#f5f5f5;
-  --btn-border:#ddd;
-  --btn-hover:#eee;
+  --btn-bg:#fff;
+  --btn-border:#e4e4e4;
+  --btn-hover:#ededed;
 
   --link:#0a58ca;
+  --link-fg:#0a58ca;
+  --accent:#2563eb;
+  --accent-hover:#1d4ed8;
+
+  --success-bg:#dcfce7;
+  --success-border:#bbf7d0;
+  --success-fg:#166534;
+  --error-bg:#fee2e2;
+  --error-border:#fecaca;
+  --error-fg:#991b1b;
   --shadow:0 1px 2px rgba(0,0,0,.04);
 
   /* Heart Rate Zone Colors (Garmin Connect style) */
@@ -22,6 +32,65 @@
   --hr-zone-3: #10b981;  /* Zone 3 (Aerobic) - Green */
   --hr-zone-4: #f59e0b;  /* Zone 4 (Threshold) - Orange */
   --hr-zone-5: #dc2626;  /* Zone 5 (VO2 Max) - Red */
+}
+
+:root[data-theme="dark"]{
+  --fg:#e5e7eb;
+  --bg:#121317;
+  --muted:#9ca3af;
+
+  --card:#1c1d21;
+  --border:#2a2b30;
+  --surface:#16171b;
+
+  --btn-bg:#1f2024;
+  --btn-border:#2a2b30;
+  --btn-hover:#24262b;
+
+  --link:#cbd5e1;
+  --accent:#3f3f46;
+  --accent-hover:#323236;
+
+  --success-bg:#0f2518;
+  --success-border:#1f3a2b;
+  --success-fg:#34d399;
+  --error-bg:#2e1b23;
+  --error-border:#52323c;
+  --error-fg:#fca5a5;
+  --shadow:0 2px 10px rgba(0,0,0,.4);
+
+  --hr-zone-1: #9ca3af;
+  --hr-zone-2: #3b82f6;
+  --hr-zone-3: #10b981;
+  --hr-zone-4: #fbbf24;
+  --hr-zone-5: #f87171;
+}
+
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --fg:#e5e7eb;
+    --bg:#121317;
+    --muted:#9ca3af;
+
+    --card:#1c1d21;
+    --border:#2a2b30;
+    --surface:#16171b;
+
+    --btn-bg:#1f2024;
+    --btn-border:#2a2b30;
+    --btn-hover:#24262b;
+
+    --link:#cbd5e1;
+    --accent:#3f3f46;
+
+    --success-bg:#0f2518;
+    --success-border:#1f3a2b;
+    --success-fg:#34d399;
+    --error-bg:#2e1b23;
+    --error-border:#52323c;
+    --error-fg:#fca5a5;
+    --shadow:0 2px 10px rgba(0,0,0,.4);
+  }
 }
 
 /* --- Base ---------------------------------------------------------------- */
@@ -34,6 +103,7 @@ body{
   background:var(--bg);
 }
 a{ color:var(--link); }
+.activities a{ color:var(--fg); }
 
 /* Layout */
 .container{ max-width:1100px; margin:32px auto; padding:0 16px; }
@@ -97,7 +167,7 @@ a{ color:var(--link); }
   font-weight:600;
   padding:6px 12px;
   cursor:pointer;
-  transition:background .15s ease,color .15s ease;
+  transition:background .15s ease,color .15s ease,border-color .15s ease;
 }
 .btn:hover{ background:var(--btn-hover); }
 .btn:disabled{
@@ -138,11 +208,47 @@ a{ color:var(--link); }
   border-radius:6px;
   padding:10px 12px;
   font-size:15px;
+  background:var(--card);
+  color:var(--fg);
+}
+.form-field select{
+  border:1px solid var(--border);
+  border-radius:6px;
+  padding:10px 12px;
+  font-size:15px;
+  background:var(--card);
+  color:var(--fg);
+}
+input[type="file"]{
+  border:1px dashed var(--border);
+  border-radius:6px;
+  padding:8px;
+  background:var(--card);
+  color:var(--fg);
+}
+input[type="file"]::-webkit-file-upload-button,
+input[type="file"]::file-selector-button{
+  border:1px solid var(--btn-border);
+  border-radius:6px;
+  background:var(--btn-bg);
+  color:var(--fg);
+  padding:6px 10px;
+  margin-right:8px;
+  cursor:pointer;
+  font-weight:600;
+}
+input[type="file"]::-webkit-file-upload-button:hover,
+input[type="file"]::file-selector-button:hover{
+  background:var(--btn-hover);
 }
 .btn-primary{
   font-size:15px;
   padding:8px 14px;
+  background:var(--accent);
+  color:#fff;
+  border-color:var(--accent);
 }
+.btn-primary:hover{ background:var(--accent-hover); border-color:var(--accent-hover); color:#fff; }
 .alert{
   border-radius:6px;
   padding:10px 12px;
@@ -150,14 +256,14 @@ a{ color:var(--link); }
   font-weight:500;
 }
 .alert.error{
-  background:#fee2e2;
-  border:1px solid #fecaca;
-  color:#991b1b;
+  background:var(--error-bg);
+  border:1px solid var(--error-border);
+  color:var(--error-fg);
 }
 .alert.success{
-  background:#dcfce7;
-  border:1px solid #bbf7d0;
-  color:#166534;
+  background:var(--success-bg);
+  border:1px solid var(--success-border);
+  color:var(--success-fg);
 }
 
 /* --- Tables & key/value -------------------------------------------------- */
@@ -264,9 +370,9 @@ a{ color:var(--link); }
   background:var(--surface);
 }
 .pagination .current{
-  background:#111827;
+  background:var(--accent);
   color:#fff;
-  border-color:#111827;
+  border-color:var(--accent);
 }
 .pagination span.disabled{
   color:var(--muted);
@@ -286,10 +392,7 @@ a{ color:var(--link); }
   padding:10px 12px;
   box-shadow:var(--shadow);
 }
-.card-head{ font-weight:600; color:#333; }
-@media (prefers-color-scheme: dark){
-  .card-head{ color:var(--fg); }
-}
+.card-head{ font-weight:600; color:var(--fg); }
   .chart-canvas { display:block; width:100%; height:100%; }
 
 /* --- Metrics ------------------------------------------------------------- */
