@@ -26,6 +26,11 @@ type statsPageVM struct {
 	Sports       []string
 	CurrentSport string
 	CurrentUser  *userView
+	Month        periodStats
+	Year         periodStats
+	MonthLabel   string
+	YearLabel    string
+	CurrentTab   string
 }
 
 type MonthItem struct {
@@ -42,6 +47,14 @@ type periodsOut struct {
 
 func (s *Server) handleStatsPage(w http.ResponseWriter, r *http.Request) {
 	sport := strings.TrimSpace(r.URL.Query().Get("sport"))
+	tab := strings.ToLower(strings.TrimSpace(r.URL.Query().Get("tab")))
+	if tab != "year" {
+		tab = "month"
+	}
+	monthQS := strings.TrimSpace(r.URL.Query().Get("month"))
+	yearQS := strings.TrimSpace(r.URL.Query().Get("year"))
+	now := time.Now()
+	loc := now.Location()
 
 	// Build sports list from ALL activities
 	sports := make([]string, 0, 8)
@@ -77,13 +90,37 @@ func (s *Server) handleStatsPage(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	now := time.Now()
+	monthStart := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, loc)
+	if t, err := time.Parse("2006-01", monthQS); err == nil {
+		monthStart = time.Date(t.Year(), t.Month(), 1, 0, 0, 0, 0, loc)
+	}
+	monthEnd := monthStart.AddDate(0, 1, 0)
+
+	yearVal := now.Year()
+	if yy, err := strconv.Atoi(yearQS); err == nil && yy > 0 {
+		yearVal = yy
+	}
+	yearStart := time.Date(yearVal, 1, 1, 0, 0, 0, 0, loc)
+	yearEnd := time.Date(yearVal+1, 1, 1, 0, 0, 0, 0, loc)
+
 	vm := statsPageVM{
-		MonthInput:   now.Format("2006-01"),
-		YearInput:    now.Format("2006"),
+		MonthInput:   monthStart.Format("2006-01"),
+		YearInput:    yearStart.Format("2006"),
 		Sports:       sports,
 		CurrentSport: sport,
 		CurrentUser:  s.currentUser(r),
+		CurrentTab:   tab,
+	}
+
+	monthStats, err := s.periodStatsFiltered(monthStart, monthEnd, sport)
+	if err == nil {
+		vm.Month = monthStats
+		vm.MonthLabel = monthStart.Format("Jan 2006")
+	}
+	yearStats, err := s.periodStatsFiltered(yearStart, yearEnd, sport)
+	if err == nil {
+		vm.Year = yearStats
+		vm.YearLabel = yearStart.Format("2006")
 	}
 	_ = s.tplStats.ExecuteTemplate(w, "layout", vm)
 }
@@ -98,6 +135,8 @@ func (s *Server) handleStatsData(w http.ResponseWriter, r *http.Request) {
 		KMs       []float64            `json:"kms"`
 		Sports    map[string][]float64 `json:"sports,omitempty"`
 		HasSports bool                 `json:"hasSports"`
+		Summary   *periodStats         `json:"summary,omitempty"`
+		Label     string               `json:"label,omitempty"`
 	}
 	resp := out{}
 
@@ -109,6 +148,10 @@ func (s *Server) handleStatsData(w http.ResponseWriter, r *http.Request) {
 		loc := time.UTC
 		yStart := time.Date(year, 1, 1, 0, 0, 0, 0, loc)
 		yEnd := yStart.AddDate(1, 0, 0)
+		resp.Label = yStart.Format("2006")
+		if s, err := s.periodStatsFiltered(yStart, yEnd, sport); err == nil {
+			resp.Summary = &s
+		}
 
 		// Initialize labels
 		for m := 1; m <= 12; m++ {
@@ -206,6 +249,10 @@ func (s *Server) handleStatsData(w http.ResponseWriter, r *http.Request) {
 
 		mStart := time.Date(t.Year(), t.Month(), 1, 0, 0, 0, 0, time.UTC)
 		mEnd := mStart.AddDate(0, 1, 0)
+		resp.Label = mStart.Format("Jan 2006")
+		if s, err := s.periodStatsFiltered(mStart, mEnd, sport); err == nil {
+			resp.Summary = &s
+		}
 
 		ndays := daysInMonthUTC(mStart.Year(), mStart.Month())
 		resp.Labels = make([]string, ndays)

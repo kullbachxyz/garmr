@@ -25,6 +25,16 @@ type listItem struct {
 	DurS   int
 }
 
+type latestActivity struct {
+	ID        int64
+	Sport     string
+	DistKm    float64
+	DurS      int
+	AvgSpd    float64
+	Ago       string
+	StartText string
+}
+
 type periodStats struct {
 	DistM  float64
 	DurS   int
@@ -41,6 +51,7 @@ type dashVM struct {
 	MonthLabel   string
 	YearLabel    string
 	Latest       []listItem
+	LatestCard   *latestActivity
 	Sports       []string // e.g. ["Run","Ride","Hike"]
 	CurrentSport string   // "", "Run", etc. empty means “All”
 	CurrentUser  *userView
@@ -79,6 +90,8 @@ const (
 func (s *Server) handleDashboard(w http.ResponseWriter, r *http.Request) {
 	// ----- read filter from URL once -----
 	sport := strings.TrimSpace(r.URL.Query().Get("sport")) // "" => All
+	now := time.Now()
+	loc := now.Location()
 
 	// ----- recent activities (unfiltered; change if you want it filtered too) -----
 	rows, err := s.db.Query(`
@@ -103,6 +116,44 @@ func (s *Server) handleDashboard(w http.ResponseWriter, r *http.Request) {
 		it.DistKm = float64(distM) / 1000.0
 		it.DurS = durS
 		items = append(items, it)
+	}
+
+	// ----- latest activity summary (unfiltered) -----
+	var latestCard *latestActivity
+	var startStr, sportName string
+	var distM, durS int
+	var avgSpd sql.NullFloat64
+	var latestID int64
+	err = s.db.QueryRow(`
+        SELECT id, start_time_utc, sport, distance_m, duration_s, avg_speed_mps
+        FROM activities
+        ORDER BY start_time_utc DESC
+        LIMIT 1`).Scan(&latestID, &startStr, &sportName, &distM, &durS, &avgSpd)
+	switch err {
+	case nil:
+		startTime, _ := parseActivityTime(startStr)
+		startLabel := strings.TrimSpace(strings.ReplaceAll(startStr, " +0000 UTC", ""))
+		startLabel = strings.TrimSuffix(startLabel, " UTC")
+		if !startTime.IsZero() {
+			startLabel = startTime.UTC().Format("Mon 02 Jan 15:04")
+		}
+		avgSpdVal := avgSpd.Float64
+		if !avgSpd.Valid && durS > 0 {
+			avgSpdVal = float64(distM) / float64(durS)
+		}
+		latestCard = &latestActivity{
+			ID:        latestID,
+			Sport:     sportName,
+			DistKm:    float64(distM) / 1000.0,
+			DurS:      durS,
+			AvgSpd:    avgSpdVal,
+			Ago:       timeAgo(startTime, now),
+			StartText: startLabel,
+		}
+	case sql.ErrNoRows:
+	default:
+		http.Error(w, err.Error(), 500)
+		return
 	}
 
 	// ----- build sports list from ALL activities (unfiltered) -----
@@ -132,8 +183,6 @@ func (s *Server) handleDashboard(w http.ResponseWriter, r *http.Request) {
 	sort.Strings(sports)
 
 	// ----- time windows -----
-	now := time.Now()
-	loc := now.Location()
 	ymd := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, loc)
 	weekday := int(ymd.Weekday()) // Sun=0
 	offset := (weekday + 6) % 7   // Mon=0
@@ -177,6 +226,7 @@ func (s *Server) handleDashboard(w http.ResponseWriter, r *http.Request) {
 		MonthLabel:   monthLabel,
 		YearLabel:    yearLabel,
 		Latest:       items,
+		LatestCard:   latestCard,
 		Sports:       sports, // full, unfiltered list
 		CurrentSport: sport,  // selected value
 	}
@@ -293,6 +343,74 @@ func (s *Server) periodStatsFiltered(from, to time.Time, sport string) (periodSt
 		ps.AvgSpd = distM / float64(durS)
 	}
 	return ps, nil
+}
+
+func parseActivityTime(ts string) (time.Time, error) {
+	layouts := []string{
+		time.RFC3339Nano,
+		time.RFC3339,
+		"2006-01-02 15:04:05 -0700 MST",
+		"2006-01-02 15:04:05",
+	}
+	for _, layout := range layouts {
+		if t, err := time.Parse(layout, ts); err == nil {
+			return t, nil
+		}
+	}
+	return time.Time{}, fmt.Errorf("cannot parse time %q", ts)
+}
+
+func timeAgo(t time.Time, now time.Time) string {
+	if t.IsZero() {
+		return ""
+	}
+	if now.IsZero() {
+		now = time.Now()
+	}
+	if t.After(now) {
+		return "just now"
+	}
+	diff := now.Sub(t)
+	switch {
+	case diff < time.Minute:
+		return "just now"
+	case diff < time.Hour:
+		m := int(diff.Minutes())
+		if m == 1 {
+			return "1 min ago"
+		}
+		return fmt.Sprintf("%d min ago", m)
+	case diff < 24*time.Hour:
+		h := int(diff.Hours())
+		if h == 1 {
+			return "1 hour ago"
+		}
+		return fmt.Sprintf("%d hours ago", h)
+	case diff < 7*24*time.Hour:
+		d := int(diff.Hours() / 24)
+		if d == 1 {
+			return "1 day ago"
+		}
+		return fmt.Sprintf("%d days ago", d)
+	case diff < 30*24*time.Hour:
+		w := int(diff.Hours() / (24 * 7))
+		if w == 1 {
+			return "1 week ago"
+		}
+		return fmt.Sprintf("%d weeks ago", w)
+	case diff < 365*24*time.Hour:
+		mo := int(diff.Hours() / (24 * 30))
+		if mo == 1 {
+			return "1 month ago"
+		}
+		return fmt.Sprintf("%d months ago", mo)
+	default:
+		y := int(diff.Hours() / (24 * 365))
+		if y <= 1 {
+			return "1 year ago"
+		}
+		return fmt.Sprintf("%d years ago", y)
+	}
 }
 
 func (s *Server) handleActivities(w http.ResponseWriter, r *http.Request) {
