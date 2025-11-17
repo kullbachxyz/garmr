@@ -1,42 +1,36 @@
 {{define "content"}}
 <h1>Statistics</h1>
 
-<!-- Sport Filter -->
-<form method="GET" class="stats-filter">
-  <label for="sport">Filter by sport:</label>
-  <select id="sport" name="sport" onchange="this.form.submit()">
-    <option value="" {{if eq .CurrentSport ""}}selected{{end}}>All</option>
-    {{range .Sports}}
-      <option value="{{.}}" {{if eq $.CurrentSport .}}selected{{end}}>{{.}}</option>
-    {{end}}
-  </select>
-  <input type="hidden" id="tab" name="tab" value="{{.CurrentTab}}" />
-  <input type="hidden" id="hidden-month" name="month" value="{{.MonthInput}}" />
-  <input type="hidden" id="hidden-year" name="year" value="{{.YearInput}}" />
-</form>
-
-  <!-- Tabs -->
-  <div class="tabs">
-    <button id="tab-month" class="btn tab active" type="button">
-      Month
-    </button>
-    <button id="tab-year" class="btn tab" type="button">
-      Year
-    </button>
-    <div class="tabs-spacer"></div>
-
-    <!-- Period selects -->
-    <div id="controls-month" class="tab-controls">
-      <label>Month:
-        <select id="select-month"></select>
-      </label>
+<div class="stats-controls simple">
+  <form method="GET" class="stats-filter stats-filter-inline">
+    <label for="sport">Sport:</label>
+    <select id="sport" name="sport" onchange="this.form.submit()">
+      <option value="" {{if eq .CurrentSport ""}}selected{{end}}>All</option>
+      {{range .Sports}}
+        <option value="{{.}}" {{if eq $.CurrentSport .}}selected{{end}}>{{.}}</option>
+      {{end}}
+    </select>
+    <div class="mode-toggle" id="mode-toggle">
+      <button type="button" class="mode-option active" id="mode-month" data-tab="month">Month</button>
+      <button type="button" class="mode-option" id="mode-year" data-tab="year">Year</button>
     </div>
-    <div id="controls-year" class="tab-controls">
-      <label>Year:
-        <select id="select-year"></select>
-      </label>
+    <div class="tab-controls" id="filter-year">
+      <label for="select-year">Year:</label>
+      <select id="select-year" name="year" onchange="this.form.submit()">
+        <option value="{{.YearLabel}}" selected>{{.YearLabel}}</option>
+      </select>
     </div>
-  </div>
+    <div class="tab-controls" id="filter-month">
+      <label for="select-month">Month:</label>
+        <select id="select-month" name="month" onchange="this.form.submit()">
+          <option value="{{.MonthInput}}" selected>{{.MonthLabel}}</option>
+        </select>
+    </div>
+    <input type="hidden" id="tab" name="tab" value="{{.CurrentTab}}" />
+    <input type="hidden" id="hidden-month" value="{{.MonthInput}}" />
+    <input type="hidden" id="hidden-year" value="{{.YearInput}}" />
+  </form>
+</div>
 
   <!-- Charts -->
   <div id="chart-month" class="chart-wrap">
@@ -83,10 +77,6 @@
 document.addEventListener('DOMContentLoaded', () => {
   const $ = (id) => document.getElementById(id);
 
-  const tabMonth  = $('tab-month');
-  const tabYear   = $('tab-year');
-  const ctrlMonth = $('controls-month');
-  const ctrlYear  = $('controls-year');
   const wrapMonth = $('chart-month');
   const wrapYear  = $('chart-year');
   const selMonth  = $('select-month');
@@ -108,6 +98,11 @@ document.addEventListener('DOMContentLoaded', () => {
   const yearPace = $('year-pace');
   const yearElev = $('year-elev');
   const yearCount = $('year-count');
+  const filterMonth = $('filter-month');
+  const filterYear = $('filter-year');
+  const modeMonth = $('mode-month');
+  const modeYear = $('mode-year');
+  const filterForm = document.querySelector('.stats-filter');
 
   // Get current sport filter from URL
   const urlParams = new URLSearchParams(window.location.search);
@@ -119,17 +114,21 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function activate(tab){
     const monthActive = (tab === 'month');
-    tabMonth.classList.toggle('active', monthActive);
-    tabYear.classList.toggle('active', !monthActive);
-    ctrlMonth.style.display = monthActive ? 'flex' : 'none';
-    ctrlYear.style.display  = monthActive ? 'none'  : 'flex';
     wrapMonth.style.display = monthActive ? 'block' : 'none';
     wrapYear.style.display  = monthActive ? 'none'  : 'block';
     if (statsMonth && statsYear) {
       statsMonth.style.display = monthActive ? 'block' : 'none';
       statsYear.style.display  = monthActive ? 'none'  : 'block';
     }
+    if (filterMonth && filterYear) {
+      filterMonth.style.display = monthActive ? 'flex' : 'none';
+      filterYear.style.display  = monthActive ? 'none'  : 'flex';
+    }
     if (tabInput) tabInput.value = tab;
+    if (modeMonth && modeYear) {
+      modeMonth.classList.toggle('active', monthActive);
+      modeYear.classList.toggle('active', !monthActive);
+    }
   }
 
   function syncMonthLabel(labelText){
@@ -356,10 +355,10 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // Events
-  tabMonth.addEventListener('click', () => { activate('month'); loadMonth(); });
-  tabYear .addEventListener('click', () => { activate('year');  loadYear();  });
   selMonth.addEventListener('change', () => { syncMonthLabel(); loadMonth(); });
   selYear .addEventListener('change', loadYear);
+  if (modeMonth) modeMonth.addEventListener('click', () => { if (tabInput) tabInput.value = 'month'; activate('month'); filterForm?.requestSubmit(); });
+  if (modeYear) modeYear.addEventListener('click', () => { if (tabInput) tabInput.value = 'year'; activate('year'); filterForm?.requestSubmit(); });
 
   // Init
   (async function init(){
@@ -370,8 +369,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (selYear.value)  await loadYear();
     if (initialTab === 'year') {
       activate('year');
-    }
-    if (initialTab === 'month') {
+    } else {
       syncMonthLabel();
     }
   })();
