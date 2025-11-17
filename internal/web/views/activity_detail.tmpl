@@ -37,7 +37,7 @@
     <span>Route</span>
     <div class="mode-toggle map-toggle" id="map-toggle">
       <button type="button" class="mode-option active" data-mode="pace">Pace</button>
-      <button type="button" class="mode-option" data-mode="hr">HR</button>
+      <button type="button" class="mode-option {{if not .HasHRData}}disabled{{end}}" data-mode="hr" {{if not .HasHRData}}disabled aria-disabled="true" title="No heart rate data"{{end}}>HR</button>
     </div>
   </div>
   <div id="leafmap" style="width:100%;height:460px;border:1px solid var(--border);border-radius:10px;"></div>
@@ -58,16 +58,24 @@
 </div>
 <div class="card" style="margin-top:12px;">
   <div class="card-head">Heart rate</div>
+  {{if .HasHRData}}
   <div class="chart-wrap" style="position:relative; height:150px; width:100%;">
     <canvas id="hr" class="chart-canvas"></canvas>
   </div>
+  {{else}}
+  <div style="padding:12px; color:var(--muted);">No heart rate data</div>
+  {{end}}
 </div>
 
 <div class="card" style="margin-top:12px;">
   <div class="card-head">Time in HR Zones</div>
+  {{if .HasHRData}}
   <div class="chart-wrap" style="position:relative; height:200px; width:100%;">
     <canvas id="hrZones" class="chart-canvas"></canvas>
   </div>
+  {{else}}
+  <div style="padding:12px; color:var(--muted);">No heart rate data</div>
+  {{end}}
 </div>
 
 <!-- STAT GRID -->
@@ -89,6 +97,7 @@
 <script>
 // One global constant for this page
 const ACT_ID = {{.ID}};
+const HAS_HR = {{if .HasHRData}}true{{else}}false{{end}};
 
 // ---------- Charts (Chart.js) ----------
 (function(){
@@ -214,38 +223,44 @@ new Chart(paceC.getContext('2d'), {
   }
 });
 
-// Heart rate
-if (hrPts.length === 0) {
-  const ctx = hrC.getContext('2d');
-  ctx.font = '16px system-ui';
-  ctx.fillStyle = '#9ca3af';
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  ctx.fillText('No data', hrC.width/2, hrC.height/2);
-} else {
-  new Chart(hrC.getContext('2d'), {
-    type: 'line',
-    data: { datasets: [{ data: hrPts, borderWidth: 1.6, borderColor: '#dc2626' }] },
-    options: {
-      ...commonOpts(),
-      scales: {
-        x: { ...commonOpts().scales.x, min: xmin, max: xmax },
-        y: { min: hrMin, max: hrMax, ticks: { callback: (v)=> `${Math.round(v)} bpm` } }
-      },
-      plugins: {
-        ...commonOpts().plugins,
-        tooltip: { ...commonOpts().plugins.tooltip,
-          callbacks: { ...commonOpts().plugins.tooltip.callbacks, label: (c)=> `${Math.round(c.parsed.y)} bpm` }
+      // Heart rate (only draw when data exists)
+      if (HAS_HR && hrC) {
+        if (hrPts.length === 0) {
+          const ctx = hrC.getContext('2d');
+          ctx.font = '16px system-ui';
+          ctx.fillStyle = '#9ca3af';
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.fillText('No data', hrC.width/2, hrC.height/2);
+        } else {
+          new Chart(hrC.getContext('2d'), {
+            type: 'line',
+            data: { datasets: [{ data: hrPts, borderWidth: 1.6, borderColor: '#dc2626' }] },
+            options: {
+              ...commonOpts(),
+              scales: {
+                x: { ...commonOpts().scales.x, min: xmin, max: xmax },
+                y: { min: hrMin, max: hrMax, ticks: { callback: (v)=> `${Math.round(v)} bpm` } }
+              },
+              plugins: {
+                ...commonOpts().plugins,
+                tooltip: { ...commonOpts().plugins.tooltip,
+                  callbacks: { ...commonOpts().plugins.tooltip.callbacks, label: (c)=> `${Math.round(c.parsed.y)} bpm` }
+                }
+              }
+            }
+          });
         }
       }
-    }
-  });
-}
 
 
 
       // HR Zones horizontal bar chart
       const hrZonesC = document.getElementById('hrZones');
+      if (!HAS_HR || !hrZonesC) {
+        return;
+      }
+
       fetch('/api/zones/'+ACT_ID)
         .then(r=>r.json())
         .then(zones=>{
@@ -388,10 +403,11 @@ if (hrPts.length === 0) {
   };
 
   const drawOverlay = (mode)=>{
+    const drawMode = (mode === 'hr' && HAS_HR) ? 'hr' : 'pace';
     layer.clearLayers();
     if (!pts.length) return;
 
-    if (mode === 'hr') {
+    if (drawMode === 'hr') {
       const hrs = pts.map(p => typeof p.hr === 'number'? p.hr : null).filter(v=>v!==null);
       const hrMin = hrs.length ? Math.min(...hrs) : null;
       const hrMax = hrs.length ? Math.max(...hrs) : null;
@@ -425,7 +441,9 @@ if (hrPts.length === 0) {
   let currentMode = 'pace';
   if (typeof localStorage !== 'undefined') {
     const saved = localStorage.getItem(overlayStorageKey);
-    if (saved === 'hr' || saved === 'pace') {
+    if (saved === 'hr' && HAS_HR) {
+      currentMode = 'hr';
+    } else if (saved === 'pace') {
       currentMode = saved;
     }
   }
@@ -443,6 +461,7 @@ if (hrPts.length === 0) {
     btns.forEach(btn=>{
       btn.addEventListener('click', ()=>{
         const mode = btn.dataset.mode || 'pace';
+        if (mode === 'hr' && !HAS_HR) return;
         if (mode === currentMode) return;
         currentMode = mode;
         btns.forEach(b=>b.classList.toggle('active', b===btn));

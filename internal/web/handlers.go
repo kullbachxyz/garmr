@@ -80,6 +80,7 @@ type activityDetailVM struct {
 	AvgSpd, Asc, Dsc                float64
 	AerobicTE, AnaerobicTE          sql.NullFloat64
 	CurrentUser                     *userView
+	HasHRData                       bool
 }
 
 const (
@@ -565,6 +566,13 @@ func (s *Server) handleActivityDetail(w http.ResponseWriter, r *http.Request) {
 		}
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
+	}
+
+	var hrCount int
+	if err := s.db.QueryRow(`SELECT COUNT(*) FROM records WHERE activity_id=? AND hr IS NOT NULL AND hr != 255`, id).Scan(&hrCount); err != nil {
+		log.Printf("query hr presence for activity %d: %v", id, err)
+	} else {
+		vm.HasHRData = hrCount > 0
 	}
 
 	vm.CurrentUser = s.currentUser(r)
