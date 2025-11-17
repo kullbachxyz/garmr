@@ -33,7 +33,13 @@
 </div>
 
 <div class="card" style="margin-top:12px;">
-  <div class="card-head">Route</div>
+  <div class="card-head" style="display:flex; align-items:center; justify-content:space-between; gap:8px;">
+    <span>Route</span>
+    <div class="mode-toggle map-toggle" id="map-toggle">
+      <button type="button" class="mode-option active" data-mode="pace">Pace</button>
+      <button type="button" class="mode-option" data-mode="hr">HR</button>
+    </div>
+  </div>
   <div id="leafmap" style="width:100%;height:460px;border:1px solid var(--border);border-radius:10px;"></div>
 </div>
 
@@ -347,20 +353,106 @@ if (hrPts.length === 0) {
 
   const gj = await fetch('/api/activity/'+ACT_ID).then(r=>r.json());
   const coords = gj?.geometry?.coordinates || []; // [lon,lat]
-  if (!coords.length) { box.innerHTML = '<div style="padding:10px;color:#777;">No track</div>'; return; }
+  const pts = gj?.properties?.points || [];
+  if (!coords.length || !pts.length) { box.innerHTML = '<div style="padding:10px;color:#777;">No track</div>'; return; }
 
-  const latlngs = coords.map(([lon,lat]) => [lat,lon]);
-
+  const mapToggle = document.getElementById('map-toggle');
+  const overlayStorageKey = 'garmr-map-overlay';
+  const latlngs = pts.map(p => [p.lat, p.lon]);
   const map = L.map('leafmap', { zoomControl: true, attributionControl: true });
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
     { maxZoom: 19, attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a>' }
   ).addTo(map);
 
-  const route = L.polyline(latlngs, { color:'#2563eb', weight:3 }).addTo(map);
+  const layer = L.layerGroup().addTo(map);
+  const startEnd = L.layerGroup().addTo(map);
+
+  const hrPalette = ['#94a3b8', '#3b82f6', '#10b981', '#f59e0b', '#dc2626']; // hr-zone colors
+  const pacePalette = ['#1e3a8a', '#1d4ed8', '#2563eb', '#60a5fa', '#bfdbfe']; // dark->light blues
+
+  const lerpColor = (c1,c2,t)=>{
+    const a=(x)=>parseInt(x,16);
+    const r=a(c1.slice(1,3))+t*(a(c2.slice(1,3))-a(c1.slice(1,3)));
+    const g=a(c1.slice(3,5))+t*(a(c2.slice(3,5))-a(c1.slice(3,5)));
+    const b=a(c1.slice(5,7))+t*(a(c2.slice(5,7))-a(c1.slice(5,7)));
+    return `rgb(${r|0},${g|0},${b|0})`;
+  };
+
+  const colorScale = (val, min, max, palette)=>{
+    if (!isFinite(val)) return palette[palette.length-1];
+    if (!isFinite(min) || !isFinite(max) || min===max) return palette[Math.floor(palette.length/2)];
+    const t=Math.min(1, Math.max(0,(val-min)/(max-min+1e-9)));
+    const idx=Math.min(palette.length-2, Math.floor(t*(palette.length-1)));
+    const localT = (t*(palette.length-1)) - idx;
+    return lerpColor(palette[idx], palette[idx+1], localT);
+  };
+
+  const drawOverlay = (mode)=>{
+    layer.clearLayers();
+    if (!pts.length) return;
+
+    if (mode === 'hr') {
+      const hrs = pts.map(p => typeof p.hr === 'number'? p.hr : null).filter(v=>v!==null);
+      const hrMin = hrs.length ? Math.min(...hrs) : null;
+      const hrMax = hrs.length ? Math.max(...hrs) : null;
+      for (let i=1;i<pts.length;i++){
+        const a=pts[i-1], b=pts[i];
+        const hr = (typeof a.hr === 'number' ? a.hr : (typeof b.hr === 'number' ? b.hr : null));
+        const color = (hr!=null && hrMin!=null && hrMax!=null) ? colorScale(hr, hrMin, hrMax, hrPalette) : '#dc2626';
+        layer.addLayer(L.polyline([[a.lat,a.lon],[b.lat,b.lon]], {color, weight:4, opacity:0.95}));
+      }
+    } else {
+      const paces = pts.map(p => (p.spd && p.spd>0)? 1000/p.spd : null).filter(v=>v!=null);
+      const pMin = paces.length ? Math.min(...paces) : null;
+      const pMax = paces.length ? Math.max(...paces) : null;
+      for (let i=1;i<pts.length;i++){
+        const a=pts[i-1], b=pts[i];
+        const pace = (a.spd && a.spd>0) ? 1000/a.spd : ((b.spd && b.spd>0)? 1000/b.spd : null);
+        const color = (pace!=null && pMin!=null && pMax!=null) ? colorScale(pace, pMin, pMax, pacePalette) : '#2563eb';
+        layer.addLayer(L.polyline([[a.lat,a.lon],[b.lat,b.lon]], {color, weight:4, opacity:0.95}));
+      }
+    }
+    startEnd.clearLayers();
+    if (latlngs.length >= 1) {
+      startEnd.addLayer(L.circleMarker(latlngs[0],  {radius:4,color:'#10b981',fill:true,fillColor:'#10b981',fillOpacity:1}));
+      startEnd.addLayer(L.circleMarker(latlngs.at(-1), {radius:4,color:'#ef4444',fill:true,fillColor:'#ef4444',fillOpacity:1}));
+    }
+  };
+
+  const route = L.polyline(latlngs, { color:'#2563eb', weight:2, opacity:0.2 }).addTo(map);
   map.fitBounds(route.getBounds(), { padding: [16,16] });
 
-  L.circleMarker(latlngs[0],  {radius:4,color:'#10b981',fill:true,fillColor:'#10b981',fillOpacity:1}).addTo(map);
-  L.circleMarker(latlngs.at(-1), {radius:4,color:'#ef4444',fill:true,fillColor:'#ef4444',fillOpacity:1}).addTo(map);
+  let currentMode = 'pace';
+  if (typeof localStorage !== 'undefined') {
+    const saved = localStorage.getItem(overlayStorageKey);
+    if (saved === 'hr' || saved === 'pace') {
+      currentMode = saved;
+    }
+  }
+  drawOverlay(currentMode);
+  if (mapToggle) {
+    const btns = mapToggle.querySelectorAll('.mode-option');
+    btns.forEach(btn=>{
+      const mode = btn.dataset.mode || 'pace';
+      btn.classList.toggle('active', mode === currentMode);
+    });
+  }
+
+  if (mapToggle) {
+    const btns = mapToggle.querySelectorAll('.mode-option');
+    btns.forEach(btn=>{
+      btn.addEventListener('click', ()=>{
+        const mode = btn.dataset.mode || 'pace';
+        if (mode === currentMode) return;
+        currentMode = mode;
+        btns.forEach(b=>b.classList.toggle('active', b===btn));
+        if (typeof localStorage !== 'undefined') {
+          localStorage.setItem(overlayStorageKey, mode);
+        }
+        drawOverlay(mode);
+      });
+    });
+  }
 
   setTimeout(()=>map.invalidateSize(), 0);
 })();

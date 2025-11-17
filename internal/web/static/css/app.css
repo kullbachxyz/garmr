@@ -366,6 +366,9 @@ input[type="file"]::file-selector-button:hover{
   border-radius:20px;
   padding:4px;
 }
+.map-toggle{
+  margin-left:auto;
+}
 .mode-option{
   border:none;
   background:transparent;

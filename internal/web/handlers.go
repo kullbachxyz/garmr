@@ -605,7 +605,7 @@ func (s *Server) handleActivityGeoJSON(w http.ResponseWriter, r *http.Request) {
 	id, _ := strconv.ParseInt(idStr, 10, 64)
 
 	rows, err := s.db.Query(`
-        SELECT t_offset_s, lat_deg, lon_deg
+        SELECT t_offset_s, lat_deg, lon_deg, hr, speed_mps
         FROM records
         WHERE activity_id = ?
           AND lat_deg IS NOT NULL
@@ -618,7 +618,15 @@ func (s *Server) handleActivityGeoJSON(w http.ResponseWriter, r *http.Request) {
 	defer rows.Close()
 
 	type pt [2]float64 // [lon, lat]
+	type richPt struct {
+		Lon float64  `json:"lon"`
+		Lat float64  `json:"lat"`
+		T   int      `json:"t"`
+		HR  *int     `json:"hr,omitempty"`
+		Spd *float64 `json:"spd,omitempty"`
+	}
 	var coords []pt
+	var points []richPt
 
 	haversineM := func(lat1, lon1, lat2, lon2 float64) float64 {
 		const R = 6371000.0
@@ -643,7 +651,9 @@ func (s *Server) handleActivityGeoJSON(w http.ResponseWriter, r *http.Request) {
 	for rows.Next() {
 		var t int
 		var lat, lon sql.NullFloat64
-		if err := rows.Scan(&t, &lat, &lon); err != nil {
+		var hr sql.NullInt64
+		var spd sql.NullFloat64
+		if err := rows.Scan(&t, &lat, &lon, &hr, &spd); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
@@ -658,30 +668,37 @@ func (s *Server) handleActivityGeoJSON(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 
-		if kept == 0 {
-			coords = append(coords, pt{lo, la})
-			lastLat, lastLon, lastT = la, lo, t
-			kept++
-			continue
-		}
-
-		if math.Abs(lastLat-la) < epsDeg && math.Abs(lastLon-lo) < epsDeg {
-			continue
-		}
-
-		dt := t - lastT
-		if dt <= 0 {
-			continue
-		}
-		d := haversineM(lastLat, lastLon, la, lo)
-		if d > maxJumpM {
-			continue
-		}
-		if d/float64(dt) > maxSpeedMS {
-			continue
+		if kept > 0 {
+			if math.Abs(lastLat-la) < epsDeg && math.Abs(lastLon-lo) < epsDeg {
+				continue
+			}
+			dt := t - lastT
+			if dt <= 0 {
+				continue
+			}
+			d := haversineM(lastLat, lastLon, la, lo)
+			if d > maxJumpM {
+				continue
+			}
+			if d/float64(dt) > maxSpeedMS {
+				continue
+			}
 		}
 
 		coords = append(coords, pt{lo, la})
+		var hrPtr *int
+		if hr.Valid && hr.Int64 != 255 {
+			val := int(hr.Int64)
+			hrPtr = &val
+		}
+		var spdPtr *float64
+		if spd.Valid {
+			v := spd.Float64
+			if v > 0 {
+				spdPtr = &v
+			}
+		}
+		points = append(points, richPt{Lon: lo, Lat: la, T: t, HR: hrPtr, Spd: spdPtr})
 		lastLat, lastLon, lastT = la, lo, t
 		kept++
 	}
@@ -698,7 +715,9 @@ func (s *Server) handleActivityGeoJSON(w http.ResponseWriter, r *http.Request) {
 			"type":        "LineString",
 			"coordinates": coords,
 		},
-		"properties": map[string]any{},
+		"properties": map[string]any{
+			"points": points,
+		},
 	}
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(feat)
