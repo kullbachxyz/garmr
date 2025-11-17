@@ -3,7 +3,7 @@ package web
 import (
 	"database/sql"
 	"encoding/json"
-	"fmt" // + add
+	"fmt"
 	"log"
 	"math"
 	"net/http"
@@ -11,7 +11,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
-	"time" // + add
+	"time"
 
 	"garmr/internal/store"
 )
@@ -81,6 +81,55 @@ type activityDetailVM struct {
 	AerobicTE, AnaerobicTE          sql.NullFloat64
 	CurrentUser                     *userView
 	HasHRData                       bool
+}
+
+type calendarEntry struct {
+	ID       int64
+	Sport    string
+	DistKm   float64
+	DurS     int
+	Calories int
+	Start    time.Time
+}
+
+type calendarDay struct {
+	Date    time.Time
+	InMonth bool
+	IsToday bool
+	Items   []calendarEntry
+	Totals  dayTotals
+}
+
+type calendarVM struct {
+	Year          int
+	Month         time.Month
+	MonthLabel    string
+	WeekLabel     string
+	Grid          [][]calendarDay
+	WeekDays      []calendarDay
+	WeekTotals    weekTotals
+	WeekRowTotals []weekTotals
+	PrevURL       string
+	NextURL       string
+	TodayURL      string
+	MonthLink     string
+	WeekLink      string
+	View          string
+	CurrentUser   *userView
+}
+
+type weekTotals struct {
+	DistM    float64
+	DurS     int
+	Calories int
+	Count    int
+}
+
+type dayTotals struct {
+	DistM    float64
+	DurS     int
+	Calories int
+	Count    int
 }
 
 const (
@@ -577,6 +626,193 @@ func (s *Server) handleActivityDetail(w http.ResponseWriter, r *http.Request) {
 
 	vm.CurrentUser = s.currentUser(r)
 	_ = s.tplDetail.ExecuteTemplate(w, "layout", vm)
+}
+
+func (s *Server) handleCalendar(w http.ResponseWriter, r *http.Request) {
+	loc := time.Local
+	now := time.Now().In(loc)
+	dayStart := func(t time.Time) time.Time {
+		return time.Date(t.Year(), t.Month(), t.Day(), 0, 0, 0, 0, t.Location())
+	}
+	nowDay := dayStart(now)
+
+	view := strings.ToLower(strings.TrimSpace(r.URL.Query().Get("view")))
+	if view != "week" {
+		view = "month"
+	}
+
+	year := nowDay.Year()
+	month := nowDay.Month()
+	if yStr := strings.TrimSpace(r.URL.Query().Get("year")); yStr != "" {
+		if y, err := strconv.Atoi(yStr); err == nil && y >= 2000 && y <= 2100 {
+			year = y
+		}
+	}
+	if mStr := strings.TrimSpace(r.URL.Query().Get("month")); mStr != "" {
+		if m, err := strconv.Atoi(mStr); err == nil && m >= 1 && m <= 12 {
+			month = time.Month(m)
+		}
+	}
+
+	// Determine the anchor date for week mode
+	weekAnchor := nowDay
+	if dStr := strings.TrimSpace(r.URL.Query().Get("date")); dStr != "" {
+		if t, err := time.Parse("2006-01-02", dStr); err == nil {
+			weekAnchor = dayStart(t.In(loc))
+		}
+	}
+	weekStart := weekAnchor.AddDate(0, 0, -((int(weekAnchor.Weekday()) + 6) % 7)) // Monday
+	weekEnd := weekStart.AddDate(0, 0, 7)
+
+	firstOfMonth := dayStart(time.Date(year, month, 1, 0, 0, 0, 0, loc))
+	// For month view grid
+	startOffset := (int(firstOfMonth.Weekday()) + 6) % 7
+	gridStart := firstOfMonth.AddDate(0, 0, -startOffset)
+	const gridDays = 42 // 6 weeks
+	gridEnd := gridStart.AddDate(0, 0, gridDays)
+
+	// Select range depending on view
+	rangeStart := gridStart
+	rangeEnd := gridEnd
+	if view == "week" {
+		rangeStart = weekStart
+		rangeEnd = weekEnd
+	}
+
+	rangeStartUTC := rangeStart.UTC()
+	rangeEndUTC := rangeEnd.UTC()
+	rows, err := s.db.Query(`
+        SELECT id, start_time_utc, sport, distance_m, duration_s, calories
+        FROM activities
+        WHERE start_time_utc >= ? AND start_time_utc < ?
+        ORDER BY start_time_utc ASC`, rangeStartUTC.Format(time.RFC3339), rangeEndUTC.Format(time.RFC3339))
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	defer rows.Close()
+
+	type dayKey string
+	dayBuckets := make(map[dayKey][]calendarEntry)
+
+	for rows.Next() {
+		var id int64
+		var startStr, sport string
+		var distM int
+		var durS int
+		var cals int
+		if err := rows.Scan(&id, &startStr, &sport, &distM, &durS, &cals); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		startT, _ := parseActivityTime(startStr)
+		startT = startT.In(loc)
+		key := dayKey(dayStart(startT).Format("2006-01-02"))
+		dayBuckets[key] = append(dayBuckets[key], calendarEntry{
+			ID:       id,
+			Sport:    sport,
+			DistKm:   float64(distM) / 1000.0,
+			DurS:     durS,
+			Calories: cals,
+			Start:    startT,
+		})
+	}
+
+	today := nowDay
+	isSameDay := func(a, b time.Time) bool {
+		return a.Year() == b.Year() && a.Month() == b.Month() && a.Day() == b.Day()
+	}
+
+	vm := calendarVM{
+		Year:        year,
+		Month:       month,
+		MonthLabel:  firstOfMonth.Format("January 2006"),
+		View:        view,
+		CurrentUser: s.currentUser(r),
+	}
+
+	if view == "month" {
+		grid := make([][]calendarDay, 0, 6)
+		weekRowTotals := make([]weekTotals, 0, 6)
+		for week := 0; week < 6; week++ {
+			row := make([]calendarDay, 0, 7)
+			var rowTotals weekTotals
+			for dow := 0; dow < 7; dow++ {
+				dt := gridStart.AddDate(0, 0, week*7+dow)
+				k := dayKey(dt.In(loc).Format("2006-01-02"))
+				dayItems := dayBuckets[k]
+				var totals dayTotals
+				for _, it := range dayItems {
+					totals.DistM += it.DistKm * 1000
+					totals.DurS += it.DurS
+					totals.Calories += it.Calories
+					totals.Count++
+					rowTotals.DistM += it.DistKm * 1000
+					rowTotals.DurS += it.DurS
+					rowTotals.Calories += it.Calories
+					rowTotals.Count++
+				}
+				row = append(row, calendarDay{
+					Date:    dt,
+					InMonth: dt.Month() == firstOfMonth.Month(),
+					IsToday: isSameDay(dt, today),
+					Items:   dayItems,
+					Totals:  totals,
+				})
+			}
+			grid = append(grid, row)
+			weekRowTotals = append(weekRowTotals, rowTotals)
+		}
+		prev := firstOfMonth.AddDate(0, -1, 0)
+		next := firstOfMonth.AddDate(0, 1, 0)
+		vm.Grid = grid
+		vm.WeekRowTotals = weekRowTotals
+		vm.PrevURL = fmt.Sprintf("/calendar?view=month&year=%d&month=%d", prev.Year(), int(prev.Month()))
+		vm.NextURL = fmt.Sprintf("/calendar?view=month&year=%d&month=%d", next.Year(), int(next.Month()))
+		vm.TodayURL = fmt.Sprintf("/calendar?view=month&year=%d&month=%d", nowDay.Year(), int(nowDay.Month()))
+		vm.MonthLink = fmt.Sprintf("/calendar?view=month&year=%d&month=%d", year, int(month))
+		vm.WeekLink = fmt.Sprintf("/calendar?view=week&date=%s", weekStart.Format("2006-01-02"))
+	} else {
+		weekDays := make([]calendarDay, 0, 7)
+		var totals weekTotals
+		for i := 0; i < 7; i++ {
+			dt := weekStart.AddDate(0, 0, i)
+			k := dayKey(dt.In(loc).Format("2006-01-02"))
+			dayItems := dayBuckets[k]
+			var dayTotal dayTotals
+			for _, it := range dayItems {
+				dayTotal.DistM += it.DistKm * 1000
+				dayTotal.DurS += it.DurS
+				dayTotal.Calories += it.Calories
+				dayTotal.Count++
+				totals.DistM += it.DistKm * 1000
+				totals.DurS += it.DurS
+				totals.Calories += it.Calories
+				totals.Count++
+			}
+			weekDays = append(weekDays, calendarDay{
+				Date:    dt,
+				InMonth: true,
+				IsToday: isSameDay(dt, today),
+				Items:   dayItems,
+				Totals:  dayTotal,
+			})
+		}
+		prev := weekStart.AddDate(0, 0, -7)
+		next := weekStart.AddDate(0, 0, 7)
+		vm.WeekDays = weekDays
+		vm.WeekTotals = totals
+		vm.WeekLabel = fmt.Sprintf("%s – %s", weekStart.Format("Jan 2"), weekEnd.AddDate(0, 0, -1).Format("Jan 2"))
+		vm.PrevURL = fmt.Sprintf("/calendar?view=week&date=%s", prev.Format("2006-01-02"))
+		vm.NextURL = fmt.Sprintf("/calendar?view=week&date=%s", next.Format("2006-01-02"))
+		vm.TodayURL = fmt.Sprintf("/calendar?view=week&date=%s", nowDay.Format("2006-01-02"))
+		vm.WeekLink = fmt.Sprintf("/calendar?view=week&date=%s", weekStart.Format("2006-01-02"))
+		vm.MonthLink = fmt.Sprintf("/calendar?view=month&year=%d&month=%d", weekStart.Year(), int(weekStart.Month()))
+	}
+
+	if err := s.tplCalendar.ExecuteTemplate(w, "layout", vm); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
 }
 
 func (s *Server) handleActivityDelete(w http.ResponseWriter, r *http.Request) {

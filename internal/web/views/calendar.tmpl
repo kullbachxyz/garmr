@@ -1,0 +1,94 @@
+{{define "content"}}
+<div style="display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:12px;">
+  <div style="display:flex; align-items:center; gap:8px;">
+    <h1 style="margin:0;">Calendar</h1>
+    <a class="btn" href="{{.TodayURL}}" aria-label="Jump to today">Today</a>
+  </div>
+  <div style="display:flex; align-items:center; gap:8px;">
+    <div class="mode-toggle">
+      <a class="mode-option {{if eq .View "month"}}active{{end}}" href="{{.MonthLink}}">Month</a>
+      <a class="mode-option {{if eq .View "week"}}active{{end}}" href="{{.WeekLink}}">Week</a>
+    </div>
+    <a class="btn" href="{{.PrevURL}}" aria-label="Previous period">&#8592;</a>
+    <div style="font-weight:600; min-width:180px; text-align:center;">
+      {{if eq .View "week"}}{{.WeekLabel}}{{else}}{{.MonthLabel}}{{end}}
+    </div>
+    <a class="btn" href="{{.NextURL}}" aria-label="Next period">&#8594;</a>
+  </div>
+</div>
+
+{{if eq .View "week"}}
+<div class="card">
+  <div class="card-head">Week summary</div>
+  <div class="metrics">
+    <div class="metric"><div class="metric-value">{{printf "%.2f" (div .WeekTotals.DistM 1000)}} <span class="metric-unit">km</span></div><div class="metric-label">Distance</div></div>
+    <div class="metric"><div class="metric-value">{{fmtDuration .WeekTotals.DurS}}</div><div class="metric-label">Time</div></div>
+    <div class="metric"><div class="metric-value">{{.WeekTotals.Calories}} <span class="metric-unit">kcal</span></div><div class="metric-label">Calories</div></div>
+    <div class="metric"><div class="metric-value">{{.WeekTotals.Count}}</div><div class="metric-label">Activities</div></div>
+  </div>
+</div>
+
+<div class="card week-card">
+  <div class="week-days">
+    {{range .WeekDays}}
+      <div class="week-day {{if .IsToday}}is-today{{end}}">
+        <div class="week-day-header">
+          <div class="week-date">{{.Date.Format "Mon 02"}}</div>
+          <div class="week-day-meta">
+            <span>{{printf "%.1f km" (div .Totals.DistM 1000)}}</span>
+            <span>· {{fmtDuration .Totals.DurS}}</span>
+            {{if gt .Totals.Calories 0}}<span>· {{.Totals.Calories}} kcal</span>{{end}}
+          </div>
+        </div>
+          <div class="week-day-entries">
+          {{range .Items}}
+            <a class="calendar-entry {{sportClass .Sport}}" href="/activity/{{.ID}}">
+              <span class="calendar-entry-title">{{.Sport}}</span>
+              <span class="calendar-entry-meta">{{printf "%.1f km" .DistKm}} · {{fmtDuration .DurS}}</span>
+            </a>
+          {{end}}
+        </div>
+      </div>
+    {{end}}
+  </div>
+</div>
+{{else}}
+<div class="card calendar-card">
+  <div class="calendar-weekdays calendar-weekdays-month">
+    <span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span><span>Sun</span>
+    <span class="calendar-week-summary-head">Weekly totals</span>
+  </div>
+  <div class="calendar-grid calendar-grid-month">
+    {{range $i, $week := .Grid}}
+      {{range $week}}
+        <div class="calendar-day {{if .IsToday}}is-today{{end}} {{if not .InMonth}}is-muted{{end}}">
+          <div class="calendar-day-header">
+            <span class="calendar-date">{{.Date.Day}}</span>
+            <span class="calendar-weekday">{{.Date.Format "Mon"}}</span>
+          </div>
+          <div class="calendar-entries">
+            {{if and (not .InMonth) (eq (len .Items) 0)}}
+            {{else}}
+              {{range .Items}}
+                <a class="calendar-entry {{sportClass .Sport}}" href="/activity/{{.ID}}">
+                  <span class="calendar-entry-title">{{.Sport}}</span>
+                  <span class="calendar-entry-meta">{{printf "%.1f km" .DistKm}} · {{fmtDuration .DurS}}</span>
+                </a>
+              {{end}}
+            {{end}}
+          </div>
+        </div>
+      {{end}}
+      <div class="calendar-week-summary">
+        {{with index $.WeekRowTotals $i}}
+          <div class="calendar-week-summary-row"><span>Distance</span><b>{{printf "%.1f km" (div .DistM 1000)}}</b></div>
+          <div class="calendar-week-summary-row"><span>Time</span><b>{{fmtDuration .DurS}}</b></div>
+          <div class="calendar-week-summary-row"><span>Calories</span><b>{{.Calories}}</b></div>
+          <div class="calendar-week-summary-row"><span>Activities</span><b>{{.Count}}</b></div>
+        {{end}}
+      </div>
+    {{end}}
+  </div>
+</div>
+{{end}}
+{{end}}

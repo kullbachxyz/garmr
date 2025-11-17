@@ -54,6 +54,7 @@ type Server struct {
 	tplLogin          *template.Template
 	tplAccountDetails *template.Template
 	tplAccountPass    *template.Template
+	tplCalendar       *template.Template
 }
 
 func New(c cfg.Config, db *store.DB, im *importer.Importer) *http.Server {
@@ -147,6 +148,24 @@ func New(c cfg.Config, db *store.DB, im *importer.Importer) *http.Server {
 			return fmt.Sprintf("%d:%02d /km", min, sec)
 		},
 
+		"sportClass": func(s string) string {
+			ls := strings.ToLower(strings.TrimSpace(s))
+			switch {
+			case strings.Contains(ls, "run"):
+				return "sport-running"
+			case strings.Contains(ls, "cycl"), strings.Contains(ls, "bik"):
+				return "sport-cycling"
+			case strings.Contains(ls, "walk"):
+				return "sport-walking"
+			case strings.Contains(ls, "hik"):
+				return "sport-hiking"
+			case strings.Contains(ls, "swim"):
+				return "sport-swimming"
+			default:
+				return "sport-generic"
+			}
+		},
+
 		"themeValue": themeValue,
 	}
 
@@ -160,6 +179,7 @@ func New(c cfg.Config, db *store.DB, im *importer.Importer) *http.Server {
 	s.tplLogin = template.Must(template.Must(base.Clone()).ParseFS(tplFS, "views/login.tmpl"))
 	s.tplAccountDetails = template.Must(template.Must(base.Clone()).ParseFS(tplFS, "views/account_details.tmpl"))
 	s.tplAccountPass = template.Must(template.Must(base.Clone()).ParseFS(tplFS, "views/account_password.tmpl"))
+	s.tplCalendar = template.Must(template.Must(base.Clone()).ParseFS(tplFS, "views/calendar.tmpl"))
 
 	// routes
 	mux.Handle("/static/", http.FileServer(http.FS(staticFS)))
@@ -192,6 +212,7 @@ func New(c cfg.Config, db *store.DB, im *importer.Importer) *http.Server {
 	mux.Handle("/stats", s.requireAuth(http.HandlerFunc(s.handleStatsPage)))
 	mux.Handle("/api/stats", s.requireAuth(http.HandlerFunc(s.handleStatsData)))
 	mux.Handle("/api/stats/periods", s.requireAuth(http.HandlerFunc(s.handleStatsPeriods)))
+	mux.Handle("/calendar", s.requireAuth(http.HandlerFunc(s.handleCalendar)))
 	mux.Handle("/import", s.requireAuth(http.HandlerFunc(s.handleImportPage)))
 	mux.Handle("/api/upload", s.requireAuth(http.HandlerFunc(s.handleFileUpload))) // POST
 
