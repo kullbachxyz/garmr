@@ -694,13 +694,16 @@ func (s *Server) handleCalendar(w http.ResponseWriter, r *http.Request) {
 		rangeEnd = weekEnd
 	}
 
-	rangeStartUTC := rangeStart.UTC()
-	rangeEndUTC := rangeEnd.UTC()
+	toDBTime := func(t time.Time) string {
+		return t.UTC().Format("2006-01-02 15:04:05 -0700 MST")
+	}
+	rangeStartUTC := toDBTime(rangeStart)
+	rangeEndUTC := toDBTime(rangeEnd)
 	rows, err := s.db.Query(`
         SELECT id, start_time_utc, sport, distance_m, duration_s, calories
         FROM activities
         WHERE start_time_utc >= ? AND start_time_utc < ?
-        ORDER BY start_time_utc ASC`, rangeStartUTC.Format(time.RFC3339), rangeEndUTC.Format(time.RFC3339))
+        ORDER BY start_time_utc ASC`, rangeStartUTC, rangeEndUTC)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
