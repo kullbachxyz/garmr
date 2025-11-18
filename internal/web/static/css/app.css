@@ -470,7 +470,7 @@ input[type="file"]::file-selector-button:hover{
   padding:10px 12px;
 }
 .week-summary-metrics .metric{
-  background:var(--surface);
+  background:var(--card);
 }
 .metric-value{ font-size:22px; font-weight:700; }
 .metric-value .metric-unit{ font-size:14px; font-weight:600; color:var(--muted); margin-left:3px; }
