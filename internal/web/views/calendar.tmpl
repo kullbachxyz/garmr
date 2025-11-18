@@ -92,6 +92,20 @@
                   {{if gt .DistKm 0.0}} {{printf "%.1f km" .DistKm}}{{end}}
                   {{if gt .DurS 0}} · {{fmtDuration .DurS}}{{end}}
                 </span>
+                <div class="plan-move">
+                  <form method="POST" action="/calendar/plan/move" style="margin:0; padding:0;">
+                    <input type="hidden" name="id" value="{{.ID}}">
+                    <input type="hidden" name="date" value="{{$day.Date.Format "2006-01-02"}}">
+                    <input type="hidden" name="delta" value="-1">
+                    <button type="submit" class="plan-entry-move" title="Move to previous day">←</button>
+                  </form>
+                  <form method="POST" action="/calendar/plan/move" style="margin:0; padding:0;">
+                    <input type="hidden" name="id" value="{{.ID}}">
+                    <input type="hidden" name="date" value="{{$day.Date.Format "2006-01-02"}}">
+                    <input type="hidden" name="delta" value="1">
+                    <button type="submit" class="plan-entry-move" title="Move to next day">→</button>
+                  </form>
+                </div>
               </div>
             {{end}}
           </div>

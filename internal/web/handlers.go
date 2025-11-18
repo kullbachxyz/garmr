@@ -1024,6 +1024,52 @@ func (s *Server) handleCalendarPlanUpdate(w http.ResponseWriter, r *http.Request
 	http.Redirect(w, r, redirect, http.StatusSeeOther)
 }
 
+func (s *Server) handleCalendarPlanMove(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "invalid form", http.StatusBadRequest)
+		return
+	}
+	idStr := strings.TrimSpace(r.FormValue("id"))
+	dateStr := strings.TrimSpace(r.FormValue("date"))
+	deltaStr := strings.TrimSpace(r.FormValue("delta"))
+
+	id, err := strconv.ParseInt(idStr, 10, 64)
+	if err != nil || id <= 0 {
+		http.Error(w, "invalid id", http.StatusBadRequest)
+		return
+	}
+	date, err := time.Parse("2006-01-02", dateStr)
+	if err != nil {
+		http.Error(w, "invalid date", http.StatusBadRequest)
+		return
+	}
+	delta := 0
+	if deltaStr != "" {
+		if v, err := strconv.Atoi(deltaStr); err == nil {
+			if v < -7 {
+				v = -7
+			}
+			if v > 7 {
+				v = 7
+			}
+			delta = v
+		}
+	}
+	newDate := date.AddDate(0, 0, delta)
+	if err := s.store.UpdatePlannedWorkoutDate(id, newDate); err != nil {
+		http.Error(w, "failed to move workout", http.StatusInternalServerError)
+		return
+	}
+
+	// redirect back to calendar week of new date
+	redirect := "/calendar?view=week&date=" + url.QueryEscape(newDate.Format("2006-01-02"))
+	http.Redirect(w, r, redirect, http.StatusSeeOther)
+}
+
 func (s *Server) handleCalendarPlanDelete(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)

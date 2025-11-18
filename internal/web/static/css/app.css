@@ -571,6 +571,25 @@ input[type="file"]::file-selector-button:hover{
   flex:1;
   display:block;
 }
+.plan-move{
+  display:flex;
+  align-items:center;
+  gap:2px;
+}
+.plan-entry-move{
+  border:none;
+  background:transparent;
+  cursor:pointer;
+  width:22px;
+  height:22px;
+  font-size:13px;
+  line-height:1;
+  color:var(--muted);
+  padding:0;
+}
+.plan-entry-move:hover{
+  color:var(--fg);
+}
 .plan-edit summary{
   cursor:pointer;
   list-style:none;

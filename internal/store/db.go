@@ -361,6 +361,12 @@ func (db *DB) UpdatePlannedWorkout(id int64, date time.Time, sport, title string
 	return err
 }
 
+func (db *DB) UpdatePlannedWorkoutDate(id int64, date time.Time) error {
+	plannedDate := date.UTC().Format("2006-01-02")
+	_, err := db.Exec(`UPDATE planned_workouts SET planned_date=?, updated_at=datetime('now') WHERE id=?`, plannedDate, id)
+	return err
+}
+
 func (db *DB) ListPlannedWorkouts(from, to time.Time) ([]PlannedWorkout, error) {
 	f := from.UTC().Format("2006-01-02")
 	t := to.UTC().Format("2006-01-02")
