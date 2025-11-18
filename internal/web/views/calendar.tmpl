@@ -20,7 +20,7 @@
 {{if eq .View "week"}}
 <div class="card">
   <div class="card-head">Week summary</div>
-  <div class="metrics">
+  <div class="metrics week-summary-metrics">
     <div class="metric"><div class="metric-value">{{printf "%.2f" (div .WeekTotals.DistM 1000)}} <span class="metric-unit">km</span></div><div class="metric-label">Distance</div></div>
     <div class="metric"><div class="metric-value">{{fmtDuration .WeekTotals.DurS}}</div><div class="metric-label">Time</div></div>
     <div class="metric"><div class="metric-value">{{.WeekTotals.Calories}} <span class="metric-unit">kcal</span></div><div class="metric-label">Calories</div></div>
