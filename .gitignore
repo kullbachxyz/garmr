@@ -4,3 +4,4 @@ garmr.db
 data/raw_fit/
 AGENTS.md
 garmrd
+.gocache/

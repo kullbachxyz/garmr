@@ -639,8 +639,8 @@ func (s *Server) handleCalendar(w http.ResponseWriter, r *http.Request) {
 	nowDay := dayStart(now)
 
 	view := strings.ToLower(strings.TrimSpace(r.URL.Query().Get("view")))
-	if view != "week" {
-		view = "month"
+	if view != "month" {
+		view = "week"
 	}
 
 	year := nowDay.Year()
