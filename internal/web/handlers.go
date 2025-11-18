@@ -665,14 +665,12 @@ func (s *Server) handleCalendar(w http.ResponseWriter, r *http.Request) {
 			anchorFromQuery = true
 		}
 	}
-	// If no explicit anchor and the current week has no data, align to the latest activity
-	if !anchorFromQuery {
+	// If no explicit anchor in week view and the current week has no data, align to the latest activity
+	if view == "week" && !anchorFromQuery {
 		var latestStart string
 		if err := s.db.QueryRow(`SELECT start_time_utc FROM activities ORDER BY start_time_utc DESC LIMIT 1`).Scan(&latestStart); err == nil {
 			if t, err := parseActivityTime(latestStart); err == nil && !t.IsZero() {
 				weekAnchor = dayStart(t.In(loc))
-				year = weekAnchor.Year()
-				month = weekAnchor.Month()
 			}
 		}
 	}
