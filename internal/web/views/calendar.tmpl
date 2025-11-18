@@ -147,9 +147,9 @@
               {{end}}
               {{range .Planned}}
                 <div class="calendar-entry planned-entry {{sportClass .Sport}}">
-                  <div class="calendar-entry-head">
+                <div class="calendar-entry-head">
                     <span class="calendar-entry-title">{{.Sport}}</span>
-                  </div>
+                </div>
                   <span class="calendar-entry-meta">
                     {{if gt .DistKm 0.0}} {{printf "%.1f km" .DistKm}}{{end}}
                     {{if gt .DurS 0}} · {{fmtDuration .DurS}}{{end}}
