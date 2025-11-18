@@ -8,6 +8,8 @@ import (
 	"math"
 	"net/http"
 	"net/url"
+	"os"
+	"path/filepath"
 	"sort"
 	"strconv"
 	"strings"
@@ -813,6 +815,98 @@ func (s *Server) handleCalendar(w http.ResponseWriter, r *http.Request) {
 	if err := s.tplCalendar.ExecuteTemplate(w, "layout", vm); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
+}
+
+func (s *Server) handleActivityDownload(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	idStr := strings.TrimSpace(r.URL.Query().Get("id"))
+	id, err := strconv.ParseInt(idStr, 10, 64)
+	if err != nil || id <= 0 {
+		http.Error(w, "invalid activity id", http.StatusBadRequest)
+		return
+	}
+
+	rawPath, err := s.store.ActivityRawPath(id)
+	switch err {
+	case nil:
+	case sql.ErrNoRows:
+		http.NotFound(w, r)
+		return
+	default:
+		http.Error(w, "failed to load activity", http.StatusInternalServerError)
+		return
+	}
+	if strings.TrimSpace(rawPath) == "" {
+		http.NotFound(w, r)
+		return
+	}
+
+	root, err := filepath.Abs(s.cfg.RawStore)
+	if err != nil {
+		http.Error(w, "invalid raw store path", http.StatusInternalServerError)
+		return
+	}
+	target, err := filepath.Abs(rawPath)
+	if err != nil {
+		http.Error(w, "invalid file path", http.StatusInternalServerError)
+		return
+	}
+	if !strings.HasPrefix(target, root+string(os.PathSeparator)) && target != root {
+		target = filepath.Join(root, filepath.Clean(rawPath))
+		if target, err = filepath.Abs(target); err != nil {
+			http.Error(w, "invalid file path", http.StatusInternalServerError)
+			return
+		}
+	}
+	rel, err := filepath.Rel(root, target)
+	if err != nil || strings.HasPrefix(rel, ".."+string(os.PathSeparator)) || rel == ".." {
+		http.Error(w, "file not available", http.StatusNotFound)
+		return
+	}
+
+	info, err := os.Stat(target)
+	if err != nil {
+		if os.IsNotExist(err) {
+			http.NotFound(w, r)
+			return
+		}
+		http.Error(w, "failed to read file", http.StatusInternalServerError)
+		return
+	}
+	if info.IsDir() {
+		http.Error(w, "file not available", http.StatusNotFound)
+		return
+	}
+
+	filename := filepath.Base(target)
+	if filename == "" || filename == "." || filename == string(filepath.Separator) {
+		filename = fmt.Sprintf("activity_%d.fit", id)
+	}
+	for strings.HasPrefix(filename, "upload_") {
+		filename = strings.TrimPrefix(filename, "upload_")
+	}
+	// collapse repeated .fit suffixes to a single one
+	base := filename
+	for {
+		lower := strings.ToLower(base)
+		if strings.HasSuffix(lower, ".fit") {
+			base = base[:len(base)-4]
+			continue
+		}
+		break
+	}
+	base = strings.TrimRight(base, ".")
+	if strings.TrimSpace(base) == "" {
+		base = fmt.Sprintf("activity_%d", id)
+	}
+	filename = base + ".fit"
+	w.Header().Set("Content-Type", "application/octet-stream")
+	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%q", filename))
+	http.ServeFile(w, r, target)
 }
 
 func (s *Server) handleActivityDelete(w http.ResponseWriter, r *http.Request) {

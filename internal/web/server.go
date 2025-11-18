@@ -203,6 +203,7 @@ func New(c cfg.Config, db *store.DB, im *importer.Importer) *http.Server {
 	mux.Handle("/", s.requireAuth(http.HandlerFunc(s.handleDashboard)))
 	mux.Handle("/activities", s.requireAuth(http.HandlerFunc(s.handleActivities)))
 	mux.Handle("/activity/delete", s.requireAuth(http.HandlerFunc(s.handleActivityDelete)))
+	mux.Handle("/activity/download", s.requireAuth(http.HandlerFunc(s.handleActivityDownload)))
 	mux.Handle("/activity/", s.requireAuth(http.HandlerFunc(s.handleActivityDetail)))
 	mux.Handle("/api/activity/", s.requireAuth(http.HandlerFunc(s.handleActivityGeoJSON)))
 	mux.Handle("/api/import", s.requireAuth(http.HandlerFunc(s.handleImportNow))) // POST

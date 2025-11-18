@@ -102,6 +102,15 @@ func (db *DB) LookupActivityByHash(tx *sql.Tx, h string) (int64, error) {
 	return id, err
 }
 
+func (db *DB) ActivityRawPath(id int64) (string, error) {
+	var path string
+	err := db.QueryRow(`SELECT raw_path FROM activities WHERE id = ?`, id).Scan(&path)
+	if err != nil {
+		return "", err
+	}
+	return path, nil
+}
+
 func (db *DB) InsertActivity(tx *sql.Tx, a fitx.Activity, rawPath, hash string) (int64, error) {
 	res, err := tx.Exec(`INSERT INTO activities(
 		fit_uid,start_time_utc,sport,sub_sport,duration_s,distance_m,avg_hr,max_hr,avg_speed_mps,calories,ascent_m,descent_m,device_vendor,device_model,raw_path,file_hash,aerobic_te,anaerobic_te,created_at

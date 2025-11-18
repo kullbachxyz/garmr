@@ -1,11 +1,14 @@
 {{define "content"}}
 <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:10px;">
   <h1 style="margin:0;">Activity</h1>
-  <form method="POST" action="/activity/delete" onsubmit="return confirm('Delete this activity?');">
-    <input type="hidden" name="id" value="{{.ID}}">
-    <input type="hidden" name="return_to" value="/activities">
-    <button type="submit" class="btn btn-danger">Delete</button>
-  </form>
+  <div style="display:flex; gap:8px; align-items:center;">
+    <a class="btn" href="/activity/download?id={{.ID}}">Download FIT</a>
+    <form method="POST" action="/activity/delete" onsubmit="return confirm('Delete this activity?');">
+      <input type="hidden" name="id" value="{{.ID}}">
+      <input type="hidden" name="return_to" value="/activities">
+      <button type="submit" class="btn btn-danger">Delete</button>
+    </form>
+  </div>
 </div>
 
 <!-- HERO METRICS -->
