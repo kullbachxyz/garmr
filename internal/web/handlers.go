@@ -658,9 +658,22 @@ func (s *Server) handleCalendar(w http.ResponseWriter, r *http.Request) {
 
 	// Determine the anchor date for week mode
 	weekAnchor := nowDay
+	anchorFromQuery := false
 	if dStr := strings.TrimSpace(r.URL.Query().Get("date")); dStr != "" {
 		if t, err := time.Parse("2006-01-02", dStr); err == nil {
 			weekAnchor = dayStart(t.In(loc))
+			anchorFromQuery = true
+		}
+	}
+	// If no explicit anchor and the current week has no data, align to the latest activity
+	if !anchorFromQuery {
+		var latestStart string
+		if err := s.db.QueryRow(`SELECT start_time_utc FROM activities ORDER BY start_time_utc DESC LIMIT 1`).Scan(&latestStart); err == nil {
+			if t, err := parseActivityTime(latestStart); err == nil && !t.IsZero() {
+				weekAnchor = dayStart(t.In(loc))
+				year = weekAnchor.Year()
+				month = weekAnchor.Month()
+			}
 		}
 	}
 	weekStart := weekAnchor.AddDate(0, 0, -((int(weekAnchor.Weekday()) + 6) % 7)) // Monday
