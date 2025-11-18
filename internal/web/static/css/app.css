@@ -106,6 +106,7 @@ a{ color:var(--link); }
 
 /* Layout */
 .container{ max-width:1100px; margin:32px auto; padding:0 16px; }
+.site-footer{ height:32px; }
 
 /* --- Topbar -------------------------------------------------------------- */
 /* make the header a flex row so we can push controls to the right */
