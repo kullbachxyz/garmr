@@ -214,6 +214,9 @@ func New(c cfg.Config, db *store.DB, im *importer.Importer) *http.Server {
 	mux.Handle("/api/stats", s.requireAuth(http.HandlerFunc(s.handleStatsData)))
 	mux.Handle("/api/stats/periods", s.requireAuth(http.HandlerFunc(s.handleStatsPeriods)))
 	mux.Handle("/calendar", s.requireAuth(http.HandlerFunc(s.handleCalendar)))
+	mux.Handle("/calendar/plan", s.requireAuth(http.HandlerFunc(s.handleCalendarPlan)))
+	mux.Handle("/calendar/plan/edit", s.requireAuth(http.HandlerFunc(s.handleCalendarPlanUpdate)))
+	mux.Handle("/calendar/plan/delete", s.requireAuth(http.HandlerFunc(s.handleCalendarPlanDelete)))
 	mux.Handle("/import", s.requireAuth(http.HandlerFunc(s.handleImportPage)))
 	mux.Handle("/api/upload", s.requireAuth(http.HandlerFunc(s.handleFileUpload))) // POST
 

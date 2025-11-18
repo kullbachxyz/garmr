@@ -94,11 +94,21 @@ type calendarEntry struct {
 	Start    time.Time
 }
 
+type plannedEntry struct {
+	ID     int64
+	Sport  string
+	Title  string
+	DistKm float64
+	DurS   int
+	Notes  string
+}
+
 type calendarDay struct {
 	Date    time.Time
 	InMonth bool
 	IsToday bool
 	Items   []calendarEntry
+	Planned []plannedEntry
 	Totals  dayTotals
 }
 
@@ -117,6 +127,7 @@ type calendarVM struct {
 	MonthLink     string
 	WeekLink      string
 	View          string
+	Sports        []string
 	CurrentUser   *userView
 }
 
@@ -132,6 +143,20 @@ type dayTotals struct {
 	DurS     int
 	Calories int
 	Count    int
+}
+
+func nullableToKm(v sql.NullInt64) float64 {
+	if v.Valid {
+		return float64(v.Int64) / 1000.0
+	}
+	return 0
+}
+
+func nullableToInt(v sql.NullInt64) int64 {
+	if v.Valid {
+		return v.Int64
+	}
+	return 0
 }
 
 const (
@@ -710,6 +735,7 @@ func (s *Server) handleCalendar(w http.ResponseWriter, r *http.Request) {
 
 	type dayKey string
 	dayBuckets := make(map[dayKey][]calendarEntry)
+	plannedBuckets := make(map[dayKey][]plannedEntry)
 
 	for rows.Next() {
 		var id int64
@@ -733,10 +759,70 @@ func (s *Server) handleCalendar(w http.ResponseWriter, r *http.Request) {
 			Start:    startT,
 		})
 	}
+	// Planned workouts
+	pRows, err := s.db.Query(`
+        SELECT id, planned_date, sport, title, distance_m, duration_s, notes
+        FROM planned_workouts
+        WHERE planned_date >= ? AND planned_date < ?
+        ORDER BY planned_date ASC`, rangeStart.Format("2006-01-02"), rangeEnd.Format("2006-01-02"))
+	if err == nil {
+		defer pRows.Close()
+		for pRows.Next() {
+			var id int64
+			var dateStr, sport string
+			var distM, durS sql.NullInt64
+			var title, notes string
+			if err := pRows.Scan(&id, &dateStr, &sport, &title, &distM, &durS, &notes); err != nil {
+				continue
+			}
+			dt, err := time.Parse("2006-01-02", dateStr)
+			if err != nil {
+				continue
+			}
+			key := dayKey(dt.Format("2006-01-02"))
+			plannedBuckets[key] = append(plannedBuckets[key], plannedEntry{
+				ID:     id,
+				Sport:  sport,
+				Title:  title,
+				DistKm: nullableToKm(distM),
+				DurS:   int(nullableToInt(durS)),
+				Notes:  notes,
+			})
+		}
+	}
 
 	today := nowDay
 	isSameDay := func(a, b time.Time) bool {
 		return a.Year() == b.Year() && a.Month() == b.Month() && a.Day() == b.Day()
+	}
+
+	// sports list for dropdown
+	sports := make([]string, 0, 8)
+	rowsSports, err := s.db.Query(`
+        SELECT DISTINCT TRIM(sport)
+        FROM activities
+        WHERE sport IS NOT NULL AND TRIM(sport) <> ''
+    `)
+	if err == nil {
+		defer rowsSports.Close()
+		seen := map[string]struct{}{}
+		for rowsSports.Next() {
+			var sp string
+			if err := rowsSports.Scan(&sp); err == nil {
+				key := strings.ToLower(strings.TrimSpace(sp))
+				if key == "" {
+					continue
+				}
+				if _, ok := seen[key]; ok {
+					continue
+				}
+				seen[key] = struct{}{}
+				sports = append(sports, sp)
+			}
+		}
+		sort.Slice(sports, func(i, j int) bool {
+			return strings.ToLower(sports[i]) < strings.ToLower(sports[j])
+		})
 	}
 
 	vm := calendarVM{
@@ -745,6 +831,7 @@ func (s *Server) handleCalendar(w http.ResponseWriter, r *http.Request) {
 		MonthLabel:  firstOfMonth.Format("January 2006"),
 		View:        view,
 		CurrentUser: s.currentUser(r),
+		Sports:      sports,
 	}
 
 	if view == "month" {
@@ -773,6 +860,7 @@ func (s *Server) handleCalendar(w http.ResponseWriter, r *http.Request) {
 					InMonth: dt.Month() == firstOfMonth.Month(),
 					IsToday: isSameDay(dt, today),
 					Items:   dayItems,
+					Planned: plannedBuckets[k],
 					Totals:  totals,
 				})
 			}
@@ -795,6 +883,7 @@ func (s *Server) handleCalendar(w http.ResponseWriter, r *http.Request) {
 			dt := weekStart.AddDate(0, 0, i)
 			k := dayKey(dt.In(loc).Format("2006-01-02"))
 			dayItems := dayBuckets[k]
+			plannedItems := plannedBuckets[k]
 			var dayTotal dayTotals
 			for _, it := range dayItems {
 				dayTotal.DistM += it.DistKm * 1000
@@ -811,6 +900,7 @@ func (s *Server) handleCalendar(w http.ResponseWriter, r *http.Request) {
 				InMonth: true,
 				IsToday: isSameDay(dt, today),
 				Items:   dayItems,
+				Planned: plannedItems,
 				Totals:  dayTotal,
 			})
 		}
@@ -829,6 +919,136 @@ func (s *Server) handleCalendar(w http.ResponseWriter, r *http.Request) {
 	if err := s.tplCalendar.ExecuteTemplate(w, "layout", vm); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
+}
+
+func (s *Server) handleCalendarPlan(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "invalid form", http.StatusBadRequest)
+		return
+	}
+	dateStr := strings.TrimSpace(r.FormValue("date"))
+	sport := strings.TrimSpace(r.FormValue("sport"))
+	title := strings.TrimSpace(r.FormValue("title"))
+	distStr := strings.TrimSpace(r.FormValue("distance_km"))
+	durStr := strings.TrimSpace(r.FormValue("duration_min"))
+	notes := strings.TrimSpace(r.FormValue("notes"))
+
+	if dateStr == "" || sport == "" {
+		http.Error(w, "date and sport required", http.StatusBadRequest)
+		return
+	}
+	date, err := time.Parse("2006-01-02", dateStr)
+	if err != nil {
+		http.Error(w, "invalid date", http.StatusBadRequest)
+		return
+	}
+	var dist sql.NullInt64
+	if distStr != "" {
+		if v, err := strconv.ParseFloat(distStr, 64); err == nil && v >= 0 {
+			dist.Valid = true
+			dist.Int64 = int64(math.Round(v * 1000))
+		}
+	}
+	var dur sql.NullInt64
+	if durStr != "" {
+		if v, err := strconv.Atoi(durStr); err == nil && v >= 0 {
+			dur.Valid = true
+			dur.Int64 = int64(v * 60)
+		}
+	}
+	if _, err := s.store.InsertPlannedWorkout(date, sport, title, dist, dur, notes); err != nil {
+		http.Error(w, "failed to save workout", http.StatusInternalServerError)
+		return
+	}
+
+	redirect := "/calendar?view=week&date=" + url.QueryEscape(dateStr)
+	http.Redirect(w, r, redirect, http.StatusSeeOther)
+}
+
+func (s *Server) handleCalendarPlanUpdate(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "invalid form", http.StatusBadRequest)
+		return
+	}
+	idStr := strings.TrimSpace(r.FormValue("id"))
+	dateStr := strings.TrimSpace(r.FormValue("date"))
+	sport := strings.TrimSpace(r.FormValue("sport"))
+	distStr := strings.TrimSpace(r.FormValue("distance_km"))
+	durStr := strings.TrimSpace(r.FormValue("duration_min"))
+	notes := strings.TrimSpace(r.FormValue("notes"))
+
+	id, err := strconv.ParseInt(idStr, 10, 64)
+	if err != nil || id <= 0 {
+		http.Error(w, "invalid id", http.StatusBadRequest)
+		return
+	}
+	date, err := time.Parse("2006-01-02", dateStr)
+	if err != nil {
+		http.Error(w, "invalid date", http.StatusBadRequest)
+		return
+	}
+	if sport == "" {
+		http.Error(w, "sport required", http.StatusBadRequest)
+		return
+	}
+
+	var dist sql.NullInt64
+	if distStr != "" {
+		if v, err := strconv.ParseFloat(distStr, 64); err == nil && v >= 0 {
+			dist.Valid = true
+			dist.Int64 = int64(math.Round(v * 1000))
+		}
+	}
+	var dur sql.NullInt64
+	if durStr != "" {
+		if v, err := strconv.Atoi(durStr); err == nil && v >= 0 {
+			dur.Valid = true
+			dur.Int64 = int64(v * 60)
+		}
+	}
+
+	if err := s.store.UpdatePlannedWorkout(id, date, sport, "", dist, dur, notes); err != nil {
+		http.Error(w, "failed to update workout", http.StatusInternalServerError)
+		return
+	}
+
+	redirect := "/calendar?view=week&date=" + url.QueryEscape(dateStr)
+	http.Redirect(w, r, redirect, http.StatusSeeOther)
+}
+
+func (s *Server) handleCalendarPlanDelete(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "invalid form", http.StatusBadRequest)
+		return
+	}
+	idStr := strings.TrimSpace(r.FormValue("id"))
+	dateStr := strings.TrimSpace(r.FormValue("date"))
+	id, err := strconv.ParseInt(idStr, 10, 64)
+	if err != nil || id <= 0 {
+		http.Error(w, "invalid id", http.StatusBadRequest)
+		return
+	}
+	if _, err := s.db.Exec(`DELETE FROM planned_workouts WHERE id = ?`, id); err != nil {
+		http.Error(w, "failed to delete", http.StatusInternalServerError)
+		return
+	}
+	redirect := "/calendar"
+	if dateStr != "" {
+		redirect = "/calendar?view=week&date=" + url.QueryEscape(dateStr)
+	}
+	http.Redirect(w, r, redirect, http.StatusSeeOther)
 }
 
 func (s *Server) handleActivityDownload(w http.ResponseWriter, r *http.Request) {

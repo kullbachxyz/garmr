@@ -554,9 +554,64 @@ input[type="file"]::file-selector-button:hover{
   border:1px solid var(--border);
 }
 .calendar-entry:hover{ background:var(--btn-hover); }
+.planned-entry:hover{ background:var(--surface); }
 .calendar-entry-title{ font-weight:600; }
 .calendar-entry-meta{ color:var(--muted); font-size:13px; }
 .calendar-entry-empty{ color:var(--muted); font-size:13px; }
+.calendar-entry-head{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:4px;
+}
+.calendar-entry-head details{
+  flex:1;
+  display:block;
+}
+.plan-edit summary{
+  cursor:pointer;
+  list-style:none;
+  border:none;
+  background:transparent;
+  padding:0;
+  font-size:15px;
+  font-weight:600;
+  display:inline-flex;
+  align-items:center;
+  gap:6px;
+  width:100%;
+}
+.planned-entry{ background:var(--surface); border-style:solid; }
+.plan-entry-delete{
+  border:none;
+  background:transparent;
+  cursor:pointer;
+  font-size:16px;
+  line-height:1;
+  color:var(--fg);
+  margin-top:-10px;
+  margin-right:0;
+  padding-left:4px;
+  padding-right:0;
+}
+.plan-entry-delete:hover{
+  color:var(--muted);
+}
+.plan-entry-duplicate{
+  border:none;
+  background:transparent;
+  cursor:pointer;
+  font-size:16px;
+  line-height:1;
+  color:var(--fg);
+  margin-top:-10px;
+  margin-right:0;
+  padding-left:4px;
+  padding-right:0;
+}
+.plan-entry-duplicate:hover{
+  color:var(--muted);
+}
 .calendar-week-summary{
   border:1px solid var(--border);
   border-radius:10px;
@@ -586,10 +641,12 @@ input[type="file"]::file-selector-button:hover{
   border:1px solid var(--border);
   border-radius:10px;
   padding:8px;
+  padding-bottom:36px;
   background:var(--card);
   display:flex;
   flex-direction:column;
   gap:6px;
+  position:relative;
 }
 .week-day.is-today{
   border-color: var(--accent);
@@ -598,6 +655,151 @@ input[type="file"]::file-selector-button:hover{
 .week-date{ font-weight:700; }
 .week-day-meta{ color:var(--muted); font-size:12px; display:flex; gap:4px; flex-wrap:wrap; }
 .week-day-entries{ display:flex; flex-direction:column; gap:6px; }
+.plan-details{
+  position:absolute;
+  right:8px;
+  bottom:10px;
+}
+.plan-details summary{
+  list-style:none;
+  cursor:pointer;
+  width:28px;
+  height:28px;
+  display:grid;
+  place-items:center;
+  background:var(--card);
+  border:1px solid var(--border);
+  border-radius:50%;
+  font-weight:700;
+  user-select:none;
+}
+.plan-details[open] summary{
+  background:var(--surface);
+}
+.plan-details summary:hover{
+  background:var(--btn-hover);
+}
+.plan-form{
+  background:var(--surface);
+  border:1px solid var(--border);
+  border-radius:8px;
+  padding:8px;
+  display:flex;
+  flex-direction:column;
+  gap:6px;
+  min-width:240px;
+  box-shadow:var(--shadow);
+  box-sizing:border-box;
+}
+.plan-form.plan-add{
+  position:absolute;
+  top:calc(100% + 8px);
+  right:0;
+}
+.plan-form.plan-edit{
+  position:absolute;
+  top:auto;
+  bottom:calc(100% + 8px);
+  right:0;
+  z-index:3;
+}
+.plan-edit{
+  margin-top:6px;
+}
+.plan-edit{ position:relative; margin:0; }
+.plan-edit summary{
+  cursor:pointer;
+  list-style:none;
+  border:none;
+  background:transparent;
+  padding:0;
+  font-size:15px;
+  font-weight:600;
+  display:inline-flex;
+  align-items:center;
+  gap:6px;
+}
+.plan-edit details{
+  position:relative;
+}
+.plan-edit .plan-form-row{
+  display:grid;
+  grid-template-columns:repeat(2, minmax(0,1fr));
+  gap:6px;
+}
+.plan-edit input,
+.plan-edit select,
+.plan-edit textarea{
+  border:1px solid var(--border);
+  border-radius:6px;
+  padding:6px;
+  background:var(--card);
+  color:var(--fg);
+  font:14px/1.4 system-ui, -apple-system, Segoe UI, Roboto, Ubuntu;
+}
+.plan-edit textarea{ resize:vertical; min-height:50px; }
+.plan-form-row{
+  display:grid;
+  grid-template-columns:repeat(2, minmax(0,1fr));
+  gap:6px;
+}
+.plan-form-row.single{
+  grid-template-columns:repeat(1, minmax(0,1fr));
+}
+.plan-form label{
+  display:flex;
+  flex-direction:column;
+  gap:3px;
+  font-size:12px;
+  color:var(--muted);
+}
+.plan-form input,
+.plan-form select,
+.plan-form textarea,
+.plan-edit input,
+.plan-edit select,
+.plan-edit textarea{
+  border:1px solid var(--border);
+  border-radius:6px;
+  padding:6px;
+  background:var(--card);
+  color:var(--fg);
+  font:14px/1.4 system-ui, -apple-system, Segoe UI, Roboto, Ubuntu;
+  width:100%;
+}
+.plan-form label,
+.plan-edit label{
+  display:flex;
+  flex-direction:column;
+  gap:4px;
+}
+.plan-form textarea,
+.plan-edit textarea{ resize:vertical; min-height:50px; }
+.plan-form-actions{ display:flex; justify-content:flex-end; }
+.plan-edit details{
+  background:var(--surface);
+  border:1px solid var(--border);
+  border-radius:8px;
+  padding:6px;
+}
+.plan-edit summary{
+  cursor:pointer;
+  font-weight:600;
+  list-style:none;
+  margin:0;
+}
+.plan-edit[open] summary{
+  margin:0;
+  padding-bottom:0;
+}
+.plan-edit form{
+  display:flex;
+  flex-direction:column;
+  gap:6px;
+}
+.plan-edit .plan-form-row{
+  grid-template-columns:repeat(2, minmax(0,1fr));
+}
 
 /* --- Responsive tweaks --------------------------------------------------- */
 @media (max-width: 900px){

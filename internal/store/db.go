@@ -59,6 +59,16 @@ type HRZone struct {
 	TimeSeconds int `json:"time_seconds"`
 }
 
+type PlannedWorkout struct {
+	ID          int64
+	PlannedDate time.Time
+	Sport       string
+	Title       string
+	DistanceM   sql.NullInt64
+	DurationS   sql.NullInt64
+	Notes       string
+}
+
 func Open(path string) (*DB, error) {
 	// ensure parent directory exists (SQLite won't create parents)
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
@@ -327,4 +337,62 @@ func (db *DB) CalculateHRZonesForActivity(activityID int64, maxHR int) error {
 func (db *DB) DeleteActivity(id int64) error {
 	_, err := db.Exec(`DELETE FROM activities WHERE id = ?`, id)
 	return err
+}
+
+func (db *DB) InsertPlannedWorkout(date time.Time, sport, title string, distanceM, durationS sql.NullInt64, notes string) (int64, error) {
+	plannedDate := date.UTC().Format("2006-01-02")
+	res, err := db.Exec(`
+        INSERT INTO planned_workouts(planned_date, sport, title, distance_m, duration_s, notes, created_at, updated_at)
+        VALUES(?,?,?,?,?,?,datetime('now'),datetime('now'))`,
+		plannedDate, sport, title, nullableInt(distanceM), nullableInt(durationS), notes)
+	if err != nil {
+		return 0, err
+	}
+	return res.LastInsertId()
+}
+
+func (db *DB) UpdatePlannedWorkout(id int64, date time.Time, sport, title string, distanceM, durationS sql.NullInt64, notes string) error {
+	plannedDate := date.UTC().Format("2006-01-02")
+	_, err := db.Exec(`
+        UPDATE planned_workouts
+        SET planned_date=?, sport=?, title=?, distance_m=?, duration_s=?, notes=?, updated_at=datetime('now')
+        WHERE id=?`,
+		plannedDate, sport, title, nullableInt(distanceM), nullableInt(durationS), notes, id)
+	return err
+}
+
+func (db *DB) ListPlannedWorkouts(from, to time.Time) ([]PlannedWorkout, error) {
+	f := from.UTC().Format("2006-01-02")
+	t := to.UTC().Format("2006-01-02")
+	rows, err := db.Query(`
+        SELECT id, planned_date, sport, title, distance_m, duration_s, notes
+        FROM planned_workouts
+        WHERE planned_date >= ? AND planned_date < ?
+        ORDER BY planned_date ASC, id ASC`, f, t)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var res []PlannedWorkout
+	for rows.Next() {
+		var it PlannedWorkout
+		var dateStr string
+		if err := rows.Scan(&it.ID, &dateStr, &it.Sport, &it.Title, &it.DistanceM, &it.DurationS, &it.Notes); err != nil {
+			return nil, err
+		}
+		if t, err := time.Parse("2006-01-02", dateStr); err == nil {
+			it.PlannedDate = t
+		}
+		res = append(res, it)
+	}
+	return res, nil
+}
+
+// helper to allow sql.NullInt64 but also plain NullInt64{}
+func nullableInt(v sql.NullInt64) interface{} {
+	if v.Valid {
+		return v.Int64
+	}
+	return nil
 }
